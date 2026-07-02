@@ -81,15 +81,18 @@ jobs:
         run: choco install innosetup --no-progress -y
 
       # 7. Compile the installer. Produces Output/PowerAppsControl-<ver>-setup.exe
+      #    PublishDir must be ABSOLUTE — Inno resolves [Files] Source paths relative
+      #    to the .iss location (installer/), not the working directory.
       - name: Build installer (Inno Setup)
         shell: pwsh
         run: |
           $v = "${{ steps.ver.outputs.version }}"
+          $pub = (Resolve-Path publish).Path
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           & $iscc installer/setup.iss `
             /DMyAppVersion=$v `
             /DMyAppName=$env:APP_NAME `
-            /DPublishDir=publish
+            /DPublishDir="$pub"
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with $LASTEXITCODE" }
 
       # 8. SETUP artifact: zip the installer exe.
