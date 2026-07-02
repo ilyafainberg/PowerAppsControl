@@ -71,12 +71,13 @@ Filename: "{app}\{#MyAppExeName}"; Parameters: "--register --quiet"; StatusMsg: 
 
 ; Offer to open the README/releases page — the server is launched by an MCP host, not
 ; run directly, so we don't auto-launch the exe.
-Filename: "{#MyAppURL}#readme"; Description: "Open the PowerAppsControl documentation"; Flags: nowait postinstall skipifsilent shellexec
+Filename: "{#MyAppURL}"; Description: "Open the PowerAppsControl documentation"; Flags: nowait postinstall skipifsilent shellexec
 
 [UninstallRun]
-; Unregister from the MCP client configs BEFORE the files are removed. RunOnceId keeps
-; this idempotent across repair/modify uninstalls.
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--unregister --quiet"; Flags: runasoriginaluser runhidden; RunOnceId: "UnregisterMcp"
+; Unregister from the MCP client configs BEFORE the files are removed. The uninstaller
+; runs in the user's own context, so a plain runhidden is correct here ([UninstallRun]
+; does not support runasoriginaluser). RunOnceId keeps this idempotent.
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--unregister --quiet"; Flags: runhidden; RunOnceId: "UnregisterMcp"
 
 ; ----------------------------------------------------------------------------
 ;  NOTE: PowerAppsControl is a stdio MCP server — it is normally launched by an
