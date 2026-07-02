@@ -4,6 +4,18 @@ All notable changes to **PowerAppsControl** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-07-02
+
+### Added
+- **Self-registration with MCP hosts.** `PowerAppsControl.exe --register` /
+  `--unregister` add or remove the server from **Microsoft Scout**
+  (`m-mcp-servers.json`) and the **GitHub Copilot CLI** (`mcp-config.json`) under
+  `%USERPROFILE%\.copilot`, merging into existing config without disturbing other
+  servers. The registered tool list is discovered by reflection so it never drifts.
+- **The installer now auto-registers** the server on install (as the original
+  non-elevated user) and **unregisters** it on uninstall.
+- `--help` output describing the run / register / unregister modes.
+
 ## [1.0.0] — 2026-07-02
 
 Initial public release.
@@ -31,4 +43,5 @@ Initial public release.
   (`find_window`, `control_window`, `screenshot_window`, `click_in_window`, `send_keys`,
   `find_element`, `record_window`, and more).
 
+[1.1.0]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.0.0

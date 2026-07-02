@@ -102,8 +102,29 @@ internal sealed class Program
         multi-window load run.
         """;
 
-    private static async Task Main(string[] args)
+    private static async Task<int> Main(string[] args)
     {
+        // CLI sub-commands: register / unregister this server with the MCP client
+        // configs (used by the installer and available to portable users), plus help.
+        if (args.Length > 0)
+        {
+            bool quiet = args.Contains("--quiet", StringComparer.OrdinalIgnoreCase);
+            switch (args[0].ToLowerInvariant())
+            {
+                case "--register":
+                case "register":
+                    return McpRegistration.Register(quiet);
+                case "--unregister":
+                case "unregister":
+                    return McpRegistration.Unregister(quiet);
+                case "--help":
+                case "-h":
+                case "/?":
+                    PrintHelp();
+                    return 0;
+            }
+        }
+
         var builder = Host.CreateApplicationBuilder(args);
 
         // MCP transports JSON-RPC over stdout. Anything written to stdout that
@@ -116,12 +137,30 @@ internal sealed class Program
         builder.Services
             .AddMcpServer(o =>
             {
-                o.ServerInfo = new() { Name = "PowerAppsControl", Version = "1.0.0" };
+                o.ServerInfo = new() { Name = "PowerAppsControl", Version = "1.1.0" };
                 o.ServerInstructions = ServerInstructions;
             })
             .WithStdioServerTransport()
             .WithToolsFromAssembly();
 
         await builder.Build().RunAsync();
+        return 0;
+    }
+
+    private static void PrintHelp()
+    {
+        Console.WriteLine("""
+            PowerAppsControl — MCP server for UX testing of Power Apps.
+
+            USAGE:
+              PowerAppsControl                Run as an MCP stdio server (default; launched by an MCP host).
+              PowerAppsControl --register     Register this server with Microsoft Scout and the GitHub
+                                              Copilot CLI (writes %USERPROFILE%\.copilot configs).
+              PowerAppsControl --unregister   Remove this server from those configs.
+              PowerAppsControl --help         Show this help.
+
+            Add --quiet to suppress output on register/unregister.
+            Restart Scout / the Copilot CLI after (un)registering for changes to take effect.
+            """);
     }
 }

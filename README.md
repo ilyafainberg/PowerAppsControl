@@ -175,22 +175,49 @@ Grab the latest build from the [Releases page](https://github.com/ilyafainberg/P
 
 - **Installer (recommended):** download `PowerAppsControl-<ver>-setup.zip`, unzip, run
   the `.exe`, follow the wizard. The build is unsigned, so Windows SmartScreen may show
-  "unknown publisher" — choose **More info → Run anyway**.
+  "unknown publisher" — choose **More info → Run anyway**. The installer **automatically
+  registers** PowerAppsControl as an MCP server with **Microsoft Scout** and the
+  **GitHub Copilot CLI** (see below) and unregisters it on uninstall.
 - **Portable:** download `PowerAppsControl-<ver>-portable-win-x64.zip`, unzip anywhere,
   run `PowerAppsControl.exe`. No admin rights, no installer. It's self-contained (bundles
-  the .NET runtime), so it runs on a clean machine.
+  the .NET runtime), so it runs on a clean machine. Register it with one command:
+  ```powershell
+  .\PowerAppsControl.exe --register
+  ```
 
 Verify your download against `SHA256SUMS.txt` attached to the release.
+
+## MCP client registration
+
+PowerAppsControl can register itself with the two supported MCP hosts — no manual JSON
+editing required:
+
+```powershell
+PowerAppsControl.exe --register     # add to Scout + GitHub Copilot CLI
+PowerAppsControl.exe --unregister   # remove from both
+PowerAppsControl.exe --help         # usage
+```
+
+`--register` merges an entry into (preserving everything else already there):
+
+| Host | Config file | Entry |
+|------|-------------|-------|
+| GitHub Copilot CLI | `%USERPROFILE%\.copilot\mcp-config.json` | `mcpServers["PowerAppsControl"]` |
+| Microsoft Scout | `%USERPROFILE%\.copilot\m-mcp-servers.json` | `servers["powerappscontrol"]` |
+
+The Scout entry is only written if that file already exists (i.e. Scout is installed).
+The tool list is discovered by reflection, so it always matches what the server exposes.
+**Restart Scout / the Copilot CLI after registering** for the change to take effect.
 
 ## Build & run
 
 ```powershell
 dotnet build -c Release
-# or run directly as an MCP stdio server:
+# run directly as an MCP stdio server:
 dotnet run -c Release
 ```
 
-### Register with an MCP host (example)
+### Manual registration (if you prefer to edit config yourself)
 
 ```json
 {

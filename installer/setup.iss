@@ -63,11 +63,24 @@ Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+; Register PowerAppsControl as an MCP server with Scout + the GitHub Copilot CLI.
+; runasoriginaluser: the installer is elevated (admin), but the MCP configs live in
+; the LOGGED-IN user's %USERPROFILE%\.copilot — so run the registration as that user.
+; runhidden: no console window flashes.
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--register --quiet"; StatusMsg: "Registering PowerAppsControl with Scout and the Copilot CLI..."; Flags: runasoriginaluser runhidden
+
+; Offer to open the README/releases page — the server is launched by an MCP host, not
+; run directly, so we don't auto-launch the exe.
+Filename: "{#MyAppURL}#readme"; Description: "Open the PowerAppsControl documentation"; Flags: nowait postinstall skipifsilent shellexec
+
+[UninstallRun]
+; Unregister from the MCP client configs BEFORE the files are removed. RunOnceId keeps
+; this idempotent across repair/modify uninstalls.
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--unregister --quiet"; Flags: runasoriginaluser runhidden; RunOnceId: "UnregisterMcp"
 
 ; ----------------------------------------------------------------------------
 ;  NOTE: PowerAppsControl is a stdio MCP server — it is normally launched by an
-;  MCP host (e.g. Microsoft Scout), not double-clicked. The Start Menu shortcut
-;  is provided for convenience / manual testing. Recording needs FFmpeg on PATH
+;  MCP host (e.g. Microsoft Scout), not double-clicked. The installer registers
+;  it automatically (above). Recording needs FFmpeg on PATH
 ;  (winget install Gyan.FFmpeg); the app runs without it (no video).
 ; ----------------------------------------------------------------------------

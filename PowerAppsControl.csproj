@@ -19,7 +19,7 @@
     <UseWPF>true</UseWPF>
 
     <!-- Package / assembly metadata -->
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Authors>Ilya Fainberg &lt;ifain@microsoft.com&gt;</Authors>
     <Product>PowerAppsControl MCP Server</Product>
     <Description>MCP server for UX testing of Power Apps: drive a canvas / model-driven app like a real user, run user-authored test scripts or agent-driven smoke tests, record every session to video, repeat runs and fan them out across multiple windows for light load testing, and produce an HTML report. Built on the TotalControl desktop-control engine.</Description>
