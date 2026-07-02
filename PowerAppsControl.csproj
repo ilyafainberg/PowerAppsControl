@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>PowerAppsControl</RootNamespace>
+    <AssemblyName>PowerAppsControl</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- UseWPF pulls in UIAutomationClient + UIAutomationTypes so we can reach
+         into the accessibility tree from `find_element` / clickElement steps and
+         invoke controls that synthetic SendInput cannot deliver to (WebView2,
+         Chromium, UWP). It also provides the WPF overlay windows used for the
+         crimson control frame and the live test HUD. -->
+    <UseWPF>true</UseWPF>
+
+    <!-- Package / assembly metadata -->
+    <Version>1.0.0</Version>
+    <Authors>Ilya Fainberg &lt;ifain@microsoft.com&gt;</Authors>
+    <Product>PowerAppsControl MCP Server</Product>
+    <Description>MCP server for UX testing of Power Apps: drive a canvas / model-driven app like a real user, run user-authored test scripts or agent-driven smoke tests, record every session to video, repeat runs and fan them out across multiple windows for light load testing, and produce an HTML report. Built on the TotalControl desktop-control engine.</Description>
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Feincraft.PowerAppsControl</PackageId>
+    <PackageTags>mcp;model-context-protocol;power-apps;power-platform;ux-testing;automation;dataverse</PackageTags>
+    <PackageProjectUrl>https://github.com/ilyafainberg/PowerAppsControl</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ilyafainberg/PowerAppsControl</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" Condition="Exists('README.md')" />
+    <None Include="LICENSE" Pack="true" PackagePath="\" Condition="Exists('LICENSE')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.*-*" />
+    <PackageReference Include="ModelContextProtocol" Version="1.4.0" />
+  </ItemGroup>
+
+</Project>

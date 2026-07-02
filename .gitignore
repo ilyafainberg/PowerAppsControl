@@ -1,0 +1,39 @@
+# .gitignore — Windows desktop (.NET) project.
+
+# Build output
+[Bb]in/
+[Oo]bj/
+publish/
+dist/
+Output/
+*.user
+
+# Inno Setup compiled installers (built by CI, never committed)
+*.msi
+
+# IDE / tooling
+.vs/
+.idea/
+.vscode/
+*.suo
+*.userprefs
+
+# Local secrets / config — NEVER commit these
+*.env
+appsettings.*.local.json
+secrets.json
+*.pfx
+
+# Logs & temp
+*.log
+*.tmp
+
+# OS junk
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Session artifacts / local test captures
+_*.png
+_*.jpg
+_*.ps1
