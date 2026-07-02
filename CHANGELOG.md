@@ -4,6 +4,17 @@ All notable changes to **PowerAppsControl** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-07-02
+
+### Added
+- **FFmpeg auto-provisioning.** `PowerAppsControl.exe --ensure-ffmpeg` and the new
+  `ensure_ffmpeg` MCP tool check for FFmpeg and install it if missing — winget first
+  (Gyan.FFmpeg), then a per-user direct download into
+  `%LOCALAPPDATA%\PowerAppsControl\ffmpeg` (no admin rights). `FindFfmpeg` now also
+  searches that cache.
+- **The installer offers to install FFmpeg** via a checked-by-default task on install.
+- The "no video" session warning now points at `ensure_ffmpeg`.
+
 ## [1.1.0] — 2026-07-02
 
 ### Added
@@ -43,5 +54,6 @@ Initial public release.
   (`find_window`, `control_window`, `screenshot_window`, `click_in_window`, `send_keys`,
   `find_element`, `record_window`, and more).
 
+[1.2.0]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.2.0
 [1.1.0]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.0.0

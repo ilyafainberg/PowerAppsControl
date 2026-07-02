@@ -117,6 +117,9 @@ internal sealed class Program
                 case "--unregister":
                 case "unregister":
                     return McpRegistration.Unregister(quiet);
+                case "--ensure-ffmpeg":
+                case "ensure-ffmpeg":
+                    return FfmpegSetup.RunCli(quiet);
                 case "--help":
                 case "-h":
                 case "/?":
@@ -137,7 +140,7 @@ internal sealed class Program
         builder.Services
             .AddMcpServer(o =>
             {
-                o.ServerInfo = new() { Name = "PowerAppsControl", Version = "1.1.0" };
+                o.ServerInfo = new() { Name = "PowerAppsControl", Version = "1.2.0" };
                 o.ServerInstructions = ServerInstructions;
             })
             .WithStdioServerTransport()
@@ -157,6 +160,8 @@ internal sealed class Program
               PowerAppsControl --register     Register this server with Microsoft Scout and the GitHub
                                               Copilot CLI (writes %USERPROFILE%\.copilot configs).
               PowerAppsControl --unregister   Remove this server from those configs.
+              PowerAppsControl --ensure-ffmpeg  Check for FFmpeg (needed for video recording) and
+                                              install it if missing (winget, else direct download).
               PowerAppsControl --help         Show this help.
 
             Add --quiet to suppress output on register/unregister.

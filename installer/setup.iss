@@ -52,6 +52,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+; FFmpeg is required for session VIDEO recording. Offer to fetch it during install
+; (checked by default). Unchecking skips it — the app still runs without video, and the
+; agent can install it later via the 'ensure_ffmpeg' tool.
+Name: "installffmpeg"; Description: "Install FFmpeg (needed for session video recording)"; GroupDescription: "Recording:"
 
 [Files]
 ; Recursively include everything the publish step produced (self-contained → bundles .NET).
@@ -68,6 +72,11 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 ; the LOGGED-IN user's %USERPROFILE%\.copilot — so run the registration as that user.
 ; runhidden: no console window flashes.
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--register --quiet"; StatusMsg: "Registering PowerAppsControl with Scout and the Copilot CLI..."; Flags: runasoriginaluser runhidden
+
+; If the user opted in, ensure FFmpeg is present (winget, else direct download). Runs as
+; the original user so the per-user FFmpeg cache lands in their profile. Can take a
+; minute on first download — the status message keeps them informed.
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--ensure-ffmpeg --quiet"; StatusMsg: "Checking for FFmpeg (video recording)..."; Tasks: installffmpeg; Flags: runasoriginaluser runhidden
 
 ; Offer to open the README/releases page — the server is launched by an MCP host, not
 ; run directly, so we don't auto-launch the exe.

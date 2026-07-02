@@ -327,6 +327,31 @@ public static class TestingTools
     }
 
     // =========================================================================
+    //  FFmpeg provisioning (needed for session video recording)
+    // =========================================================================
+
+    [McpServerTool(Name = "ensure_ffmpeg")]
+    [Description(
+        "Checks whether FFmpeg (required for session video recording) is available and installs it if it is " +
+        "not — first via winget (Gyan.FFmpeg), then, if winget is unavailable, by downloading a static build " +
+        "into a per-user cache (no admin rights needed). Call this before start_test_session if you want to be " +
+        "sure the session is recorded; sessions still run without it, just with no video. Set checkOnly=true to " +
+        "only report status without installing.")]
+    public static string EnsureFfmpeg(
+        [Description("If true, only check for FFmpeg and report; do not install. Default false (install if missing).")]
+        bool checkOnly = false)
+    {
+        var log = new StringBuilder();
+        var r = FfmpegSetup.Ensure(allowInstall: !checkOnly, log: m => log.AppendLine("  " + m));
+        var sb = new StringBuilder();
+        sb.AppendLine(r.Available ? $"✅ FFmpeg available at: {r.Path}" : $"⚠️ FFmpeg not available. {r.Detail}");
+        if (log.Length > 0) { sb.AppendLine("Details:"); sb.Append(log); }
+        if (!r.Available && checkOnly)
+            sb.AppendLine("Call ensure_ffmpeg (checkOnly=false) to install it automatically.");
+        return sb.ToString();
+    }
+
+    // =========================================================================
     //  Session lifecycle
     // =========================================================================
 

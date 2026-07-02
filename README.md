@@ -165,9 +165,11 @@ smoke sessions — the suggested repeatable script.
 ## Requirements
 
 - **Windows 10/11**, **.NET 10 SDK** (`net10.0-windows`).
-- **FFmpeg** for video recording — on `PATH`, or set `POWERAPPSCONTROL_FFMPEG` to
-  `ffmpeg.exe`. Install with `winget install Gyan.FFmpeg`. Without it, sessions still
-  run (and report) but produce no video.
+- **FFmpeg** for video recording. You don't have to install it by hand — the installer
+  offers to fetch it, and you can run `PowerAppsControl.exe --ensure-ffmpeg` or call the
+  `ensure_ffmpeg` MCP tool at any time (winget first, then a per-user direct download).
+  Without FFmpeg, sessions still run and report — they just have no video. To point at an
+  existing binary, set `POWERAPPSCONTROL_FFMPEG` to `ffmpeg.exe`.
 
 ## Install (from a Release)
 
@@ -193,9 +195,10 @@ PowerAppsControl can register itself with the two supported MCP hosts — no man
 editing required:
 
 ```powershell
-PowerAppsControl.exe --register     # add to Scout + GitHub Copilot CLI
-PowerAppsControl.exe --unregister   # remove from both
-PowerAppsControl.exe --help         # usage
+PowerAppsControl.exe --register       # add to Scout + GitHub Copilot CLI
+PowerAppsControl.exe --unregister     # remove from both
+PowerAppsControl.exe --ensure-ffmpeg  # install FFmpeg if missing (video recording)
+PowerAppsControl.exe --help           # usage
 ```
 
 `--register` merges an entry into (preserving everything else already there):

@@ -185,11 +185,23 @@ internal static class ScreenRecorder
         return (r.Left, r.Top);
     }
 
-    /// <summary>Locate ffmpeg.exe: explicit env var → PATH → WinGet Links → common install dirs.</summary>
+    /// <summary>
+    /// Where PowerAppsControl caches a self-provisioned FFmpeg (see FfmpegSetup): a per-user
+    /// location that needs no admin rights and survives across sessions.
+    /// %LOCALAPPDATA%\PowerAppsControl\ffmpeg\ffmpeg.exe
+    /// </summary>
+    public static string CachedFfmpegPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "PowerAppsControl", "ffmpeg", "ffmpeg.exe");
+
+    /// <summary>Locate ffmpeg.exe: explicit env var → local cache → PATH → WinGet Links → common dirs.</summary>
     public static string? FindFfmpeg()
     {
         var env = Environment.GetEnvironmentVariable("POWERAPPSCONTROL_FFMPEG");
         if (!string.IsNullOrWhiteSpace(env) && File.Exists(env)) return env;
+
+        // Our own self-provisioned copy.
+        if (File.Exists(CachedFfmpegPath)) return CachedFfmpegPath;
 
         // PATH
         var pathVar = Environment.GetEnvironmentVariable("PATH") ?? "";

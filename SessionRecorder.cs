@@ -52,8 +52,9 @@ internal sealed class SessionRecorder
     {
         if (ScreenRecorder.FindFfmpeg() is null)
         {
-            error = "FFmpeg was not found — the session will run WITHOUT video. Install it with " +
-                    "'winget install Gyan.FFmpeg' (or set POWERAPPSCONTROL_FFMPEG) and start a new session to record.";
+            error = "FFmpeg was not found — the session will run WITHOUT video. Call the 'ensure_ffmpeg' tool " +
+                    "(or run 'PowerAppsControl.exe --ensure-ffmpeg') to install it automatically, then start a new " +
+                    "session to record.";
             return null;
         }
 
