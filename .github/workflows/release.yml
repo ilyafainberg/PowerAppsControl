@@ -95,15 +95,17 @@ jobs:
             /DPublishDir="$pub"
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with $LASTEXITCODE" }
 
-      # 8. SETUP artifact: zip the installer exe.
+      # 8. SETUP artifact: zip the installer exe (search in case OutputDir differs).
       - name: Create Setup zip
         shell: pwsh
         run: |
           $v = "${{ steps.ver.outputs.version }}"
-          $exe = "Output/$($env:APP_NAME)-$v-setup.exe"
-          if (-not (Test-Path $exe)) { throw "Installer not found at $exe" }
+          $name = "$($env:APP_NAME)-$v-setup.exe"
+          $exe = Get-ChildItem -Recurse -Filter $name -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { throw "Installer '$name' not found anywhere under the workspace." }
+          Write-Host "Found installer at $($exe.FullName)"
           $zip = "dist/$($env:APP_NAME)-$v-setup.zip"
-          Compress-Archive -Path $exe -DestinationPath $zip -Force
+          Compress-Archive -Path $exe.FullName -DestinationPath $zip -Force
           Write-Host "Wrote $zip"
 
       # 9. Checksums for provenance.

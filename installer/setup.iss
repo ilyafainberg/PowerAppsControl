@@ -37,7 +37,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 ; LICENSE shown in the wizard — the repo's GPLv3 file.
 LicenseFile=..\LICENSE
-OutputDir=Output
+OutputDir=..\Output
 OutputBaseFilename={#MyAppName}-{#MyAppVersion}-setup
 Compression=lzma2
 SolidCompression=yes
