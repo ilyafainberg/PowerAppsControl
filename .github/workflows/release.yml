@@ -35,7 +35,7 @@ jobs:
     steps:
       # 1. Check out the exact tagged commit.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # 2. Derive the version from the tag.  v1.0.0 -> 1.0.0 (0.0.0 for manual runs).
       - name: Resolve version
@@ -49,7 +49,7 @@ jobs:
 
       # 3. Set up the .NET SDK from global.json (pins the .NET 10 SDK; allows prerelease).
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
 
@@ -118,9 +118,11 @@ jobs:
           } | Out-File -Encoding ascii dist/SHA256SUMS.txt
           Get-Content dist/SHA256SUMS.txt
 
-      # 10. Create the GitHub Release and attach every dist/ asset.
+      # 10. Create the GitHub Release and attach every dist/ asset (tag pushes only —
+      #     a manual workflow_dispatch run builds + validates without publishing a release).
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
         with:
           name: "${{ env.APP_NAME }} ${{ github.ref_name }}"
           generate_release_notes: true
