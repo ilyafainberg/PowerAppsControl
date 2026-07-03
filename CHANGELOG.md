@@ -4,6 +4,14 @@ All notable changes to **PowerAppsControl** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] — 2026-07-03
+
+### Changed
+- **CI: bumped GitHub Actions to Node-24 versions** (`checkout@v5`, `setup-dotnet@v5`,
+  `action-gh-release@v3`), clearing the Node 20 deprecation warning. The release-publish
+  step now only runs on tag pushes, so a manual `workflow_dispatch` run builds and validates
+  without creating a release.
+
 ## [1.3.1] — 2026-07-03
 
 ### Changed
@@ -92,6 +100,7 @@ Initial public release.
   (`find_window`, `control_window`, `screenshot_window`, `click_in_window`, `send_keys`,
   `find_element`, `record_window`, and more).
 
+[1.3.2]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.3.2
 [1.3.1]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.3.1
 [1.3.0]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.3.0
 [1.2.0]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.2.0
