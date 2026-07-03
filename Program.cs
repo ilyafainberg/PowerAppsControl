@@ -120,6 +120,12 @@ internal sealed class Program
                 case "--ensure-ffmpeg":
                 case "ensure-ffmpeg":
                     return FfmpegSetup.RunCli(quiet);
+                case "--check-update":
+                case "check-update":
+                    return Updater.RunCheckCli();
+                case "--update":
+                case "update":
+                    return Updater.RunUpdateCli();
                 case "--help":
                 case "-h":
                 case "/?":
@@ -140,7 +146,7 @@ internal sealed class Program
         builder.Services
             .AddMcpServer(o =>
             {
-                o.ServerInfo = new() { Name = "PowerAppsControl", Version = "1.3.0" };
+                o.ServerInfo = new() { Name = "PowerAppsControl", Version = "1.3.1" };
                 o.ServerInstructions = ServerInstructions;
             })
             .WithStdioServerTransport()
@@ -162,6 +168,8 @@ internal sealed class Program
               PowerAppsControl --unregister   Remove this server from those configs.
               PowerAppsControl --ensure-ffmpeg  Check for FFmpeg (needed for video recording) and
                                               install it if missing (winget, else direct download).
+              PowerAppsControl --check-update  Check GitHub Releases for a newer version.
+              PowerAppsControl --update        Download and install the latest version (shows progress).
               PowerAppsControl --help         Show this help.
 
             Add --quiet to suppress output on register/unregister.

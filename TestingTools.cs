@@ -352,6 +352,88 @@ public static class TestingTools
     }
 
     // =========================================================================
+    //  Self-update (GitHub Releases)
+    // =========================================================================
+
+    [McpServerTool(Name = "check_for_update")]
+    [Description(
+        "Checks GitHub Releases for a newer version of the PowerAppsControl MCP server and reports whether an " +
+        "update is available (current vs latest version, the asset that would be installed, and release notes). " +
+        "Does not install anything. Use update_server to actually apply it.")]
+    public static async Task<string> CheckForUpdate(CancellationToken cancellationToken = default)
+    {
+        var info = await Updater.CheckAsync(cancellationToken);
+        var sb = new StringBuilder();
+        if (info.UpdateAvailable)
+        {
+            sb.AppendLine($"⬆️ Update available: v{info.Latest} (installed: v{info.Current}, {info.Kind} install).");
+            sb.AppendLine($"  Asset: {info.AssetName}");
+            if (!string.IsNullOrWhiteSpace(info.Notes))
+                sb.AppendLine("  Notes:\n" + Indent(info.Notes, 4, 12));
+            sb.AppendLine("Call update_server to download and install it.");
+        }
+        else if (info.Latest > new Version(0, 0, 0))
+        {
+            sb.AppendLine($"✅ Up to date (installed v{info.Current}, latest release v{info.Latest}).");
+        }
+        else
+        {
+            sb.AppendLine($"⚠️ Could not determine the latest version. {info.Notes}");
+        }
+        return sb.ToString();
+    }
+
+    [McpServerTool(Name = "update_server")]
+    [Description(
+        "Downloads and installs the latest PowerAppsControl release from GitHub, then re-registers the server. " +
+        "Because the running server executable is locked, the update is applied by a helper process that waits " +
+        "for this process (and the host) to exit — so AFTER calling this, tell the user to restart their MCP " +
+        "host (Scout / Copilot CLI) to complete the update and load the new version. Returns what it did. Use " +
+        "check_for_update first to see if an update exists.")]
+    public static async Task<string> UpdateServer(CancellationToken cancellationToken = default)
+    {
+        var info = await Updater.CheckAsync(cancellationToken);
+        if (!info.UpdateAvailable || info.AssetUrl is null || info.AssetName is null)
+            return $"No update to install (installed v{info.Current}, latest v{info.Latest}).";
+
+        var tmpDir = Path.Combine(Path.GetTempPath(), $"pac-update-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmpDir);
+        var assetPath = Path.Combine(tmpDir, info.AssetName);
+
+        try
+        {
+            long lastPct = -1;
+            var progress = new StringBuilder();
+            await Updater.DownloadAsync(info.AssetUrl, assetPath, (done, total) =>
+            {
+                if (total > 0)
+                {
+                    long pct = done * 100 / total;
+                    if (pct != lastPct && pct % 20 == 0) { lastPct = pct; progress.Append($"{pct}%… "); }
+                }
+            }, cancellationToken);
+
+            Updater.SpawnApplyHelper(assetPath, info.Kind);
+
+            return $"⬆️ Downloading v{info.Latest} complete ({progress}100%). Update helper launched.\n" +
+                   "The new version will be applied once this server/host exits — **restart Scout / the " +
+                   "Copilot CLI now** to finish updating and load PowerAppsControl v" + info.Latest + ".";
+        }
+        catch (Exception ex)
+        {
+            return $"Update failed: {ex.Message}. You can also download it manually from " +
+                   "https://github.com/ilyafainberg/PowerAppsControl/releases.";
+        }
+    }
+
+    private static string Indent(string text, int spaces, int maxLines)
+    {
+        var pad = new string(' ', spaces);
+        var lines = text.Replace("\r\n", "\n").Split('\n').Take(maxLines);
+        return string.Join("\n", lines.Select(l => pad + l));
+    }
+
+    // =========================================================================
     //  Session lifecycle
     // =========================================================================
 

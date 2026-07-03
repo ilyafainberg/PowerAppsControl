@@ -13,6 +13,23 @@ available, the server is not registered — tell the user to install/register it
 **Golden rule: always follow the three steps in order — never skip verification, never
 skip the mode choice, always end the session.**
 
+## Clickable choices — use the host's picker, not server elicitation
+
+At every decision point (mode choice, plan approval, re-run vs. fix, "which window?"),
+present the options as **clickable buttons using the host's own picker tool**:
+
+- In **Microsoft Scout**, call **`m_ask_user`** with 2–5 discrete options. Put any context
+  or recommendation in your assistant message *before* the call, and don't end that message
+  with your own question — the tool's `question` is the only prompt shown.
+- If the host has no native picker, ask the question in chat text with a short numbered
+  list.
+
+Do **not** rely on the MCP server's built-in elicitation for buttons: most hosts
+(Scout included) don't advertise the MCP `elicitation` capability, so the server tools
+(`open_power_app`'s mode prompt, `ask_user_choice`) fall back to plain text and **no
+buttons appear**. Treat those tools' output as text guidance and render the actual buttons
+yourself with `m_ask_user`. The user can always type a freeform answer instead of clicking.
+
 The server drives the user's **real desktop and real Power App** — there is no sandbox.
 Default to **read-only** (navigate, sort, filter, open records, assert fields). Never
 create/update/delete records, submit forms, send messages, or run destructive command-bar
@@ -23,8 +40,8 @@ multi-window load run.
 
 ## Step 1 — Open & verify the app
 
-1. Get the app URL. If the user didn't give one, **ask for it** (offer buttons with
-   `ask_user_choice` if you have a likely candidate). Accept canvas play links
+1. Get the app URL. If the user didn't give one, **ask for it** (offer likely candidates as
+   buttons with `m_ask_user` if you have any). Accept canvas play links
    (`apps.powerapps.com/play/...`), model-driven apps (`*.dynamics.com/main.aspx?appid=...`),
    the maker portal (`make.powerapps.com`), and Power Pages (`*.powerappsportals.com`).
 2. Call **`open_power_app(url)`**. It opens the URL in a **new dedicated browser window**
@@ -43,9 +60,9 @@ missing. Sessions still run without it, just with no video.
 
 ## Step 2 — Choose the mode (clickable buttons)
 
-`open_power_app` already asks the user to pick a mode. If your client rendered buttons,
-use the returned choice. Otherwise present the three modes yourself with
-**`ask_user_choice(question, options)`** so the user can click:
+Present the three modes as buttons with **`m_ask_user`** (see "Clickable choices" above) and
+wait for the user's pick. `open_power_app` also returns a mode prompt as text, but on Scout
+it will NOT have rendered buttons — so you render them. Offer:
 
 1. **Smoke test** — you explore the app yourself and produce a report + a suggested
    repeatable script.
@@ -77,7 +94,7 @@ start one. Always end the session even if a run fails — that's what writes the
    **`save_test_script(name, fromDraft=true)`**.
 
    **B) Explore & propose** — recon with `screenshot_window` + `find_element`, then present
-   a concrete step table and get approval (`ask_user_choice`: "Approve / Change / Cancel").
+   a concrete step table and get approval via **`m_ask_user`** ("Approve / Change / Cancel").
    After approval, run it with **`run_test_script(scriptJson=..., runs=1)`**.
 
    **C) Own plan** — build the script from the user's steps and call
@@ -165,7 +182,8 @@ happens your next tool call returns `⛔ ABORTED BY USER`. Stop immediately, cal
 
 Workflow (this server):
 - `open_power_app(url, timeoutSeconds?, browserQuery?, newWindow?)` — Step 1.
-- `ask_user_choice(question, options[])` — clickable buttons at any decision point.
+- `ask_user_choice(question, options[])` — server-side elicitation; **only renders buttons
+  if the host supports MCP elicitation (Scout does not).** Prefer the host's `m_ask_user`.
 - `ensure_ffmpeg(checkOnly?)` — install FFmpeg for recording if missing.
 - `start_test_session(appName, windowQuery?, maxWindows?, fps?, recordVideo?)` — Step 3 start.
 - `smoke_step(action, description?, ...)` — one exploratory action + record to draft.

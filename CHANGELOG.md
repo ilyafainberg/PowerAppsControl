@@ -4,6 +4,34 @@ All notable changes to **PowerAppsControl** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] — 2026-07-03
+
+### Changed
+- **Companion skill now drives clickable choices through the host's own picker**
+  (`m_ask_user` in Scout) instead of MCP server elicitation. Scout doesn't advertise the
+  MCP `elicitation` capability, so the server's `ask_user_choice` / `open_power_app` mode
+  prompt only returned text and no buttons rendered. The skill now instructs the agent to
+  render the mode choice, plan approval, and other decisions with `m_ask_user`, and treats
+  the server tools' output as text guidance.
+
+## [1.3.1] — 2026-07-03
+
+### Added
+- **Self-updater from GitHub Releases.** `--check-update` reports whether a newer release
+  exists; `--update` downloads the matching asset (portable zip or installer) **with a
+  console progress bar** and applies it via a helper (`apply-update.cmd`) that waits for the
+  host to close, extracts over the install (or runs setup silently), and re-registers. Also
+  exposed as the `check_for_update` / `update_server` MCP tools.
+- **Companion skill now installs for the GitHub Copilot CLI too** (`~/.copilot/skills/`),
+  not just Scout — so both hosts get the workflow playbook.
+
+### Changed
+- **Clickable choices go through the host's own picker** (`m_ask_user` in Scout) instead of
+  MCP server elicitation. Scout doesn't advertise the MCP `elicitation` capability, so the
+  server's `ask_user_choice` / `open_power_app` mode prompt only returned text and no
+  buttons appeared. The skill now renders mode choice, plan approval, and other decisions
+  with `m_ask_user`.
+
 ## [1.3.0] — 2026-07-03
 
 ### Added
@@ -64,6 +92,7 @@ Initial public release.
   (`find_window`, `control_window`, `screenshot_window`, `click_in_window`, `send_keys`,
   `find_element`, `record_window`, and more).
 
+[1.3.1]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.3.1
 [1.3.0]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.3.0
 [1.2.0]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.2.0
 [1.1.0]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.1.0

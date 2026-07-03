@@ -195,9 +195,11 @@ PowerAppsControl can register itself with the two supported MCP hosts — no man
 editing required:
 
 ```powershell
-PowerAppsControl.exe --register       # add to Scout + GitHub Copilot CLI
+PowerAppsControl.exe --register       # add server + skill to Scout + GitHub Copilot CLI
 PowerAppsControl.exe --unregister     # remove from both
 PowerAppsControl.exe --ensure-ffmpeg  # install FFmpeg if missing (video recording)
+PowerAppsControl.exe --check-update   # check GitHub Releases for a newer version
+PowerAppsControl.exe --update         # download + install the latest (with a progress bar)
 PowerAppsControl.exe --help           # usage
 ```
 
@@ -216,10 +218,24 @@ The tool list is discovered by reflection, so it always matches what the server 
 
 Registering also installs a **companion skill** that teaches the agent the end-to-end
 workflow (open & verify → choose a mode → recorded session → report). Without it, agents
-see the tools but don't know how to sequence them. It's installed to
-`%USERPROFILE%\.copilot\m-skills\PowerAppsControl\SKILL.md` and registered in Scout's skill
-index (when present). Invoke it explicitly with `/PowerAppsControl`, or just say
-"test my power app <url>". `--unregister` removes it.
+see the tools but don't know how to sequence them. It's installed for **both hosts** —
+`%USERPROFILE%\.copilot\m-skills\PowerAppsControl\` (Scout, plus a skills-metadata entry)
+and `%USERPROFILE%\.copilot\skills\PowerAppsControl\` (GitHub Copilot CLI). Invoke it
+explicitly with `/PowerAppsControl`, or just say "test my power app <url>". `--unregister`
+removes it from both.
+
+The skill also drives all clickable decisions (mode choice, plan approval) through the
+**host's native picker** (`m_ask_user` in Scout), because most hosts don't advertise the
+MCP `elicitation` capability that the server's own `ask_user_choice` relies on.
+
+## Updating
+
+PowerAppsControl updates itself from **GitHub Releases** (no backend). `--check-update`
+reports whether a newer version exists; `--update` downloads the right asset (portable zip
+or installer, matching how you installed) with a progress bar and applies it via a helper
+that waits for the host to close, then re-registers. Agents can also call the
+`check_for_update` / `update_server` MCP tools. After an update, **restart your MCP host**
+to load the new version.
 
 ## Build & run
 

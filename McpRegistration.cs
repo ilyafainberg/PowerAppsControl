@@ -73,9 +73,10 @@ internal static class McpRegistration
                 lines.Add($"  • Microsoft Scout     → skipped (no {scoutPath}; Scout not detected)");
             }
 
-            // 3) Companion skill (/PowerAppsControl) — teaches the agent the workflow.
-            var skillMsg = InstallSkill(dir);
-            if (skillMsg is not null) lines.Add(skillMsg);
+            // 3) Companion skill (/PowerAppsControl) — teaches the agent the workflow. Installs to
+            //    both Scout (m-skills) and the GitHub Copilot CLI (skills).
+            var skillLines = InstallSkill(dir);
+            if (skillLines is not null) lines.AddRange(skillLines);
 
             if (!quiet)
             {
@@ -106,7 +107,7 @@ internal static class McpRegistration
             var scoutPath = Path.Combine(dir, "m-mcp-servers.json");
             if (RemoveKey(scoutPath, "servers", ScoutServerKey)) removed.Add(scoutPath);
 
-            if (UninstallSkill(dir)) removed.Add(Path.Combine(dir, "m-skills", SkillName));
+            if (UninstallSkill(dir)) removed.Add(Path.Combine(dir, "{m-skills,skills}", SkillName) + " (companion skill)");
 
             if (!quiet)
             {
@@ -198,49 +199,76 @@ internal static class McpRegistration
     }
 
     /// <summary>
-    /// Install the companion skill (/PowerAppsControl) so the agent knows the workflow:
-    /// copy the bundled skill\SKILL.md into %USERPROFILE%\.copilot\m-skills\PowerAppsControl,
-    /// and upsert it into Scout's skills-metadata.json (only if that registry exists — i.e.
-    /// Scout is installed). Returns a status line, or null if the bundled skill is missing.
+    /// Install the companion skill (/PowerAppsControl) so agents know the workflow. Installs to BOTH
+    /// hosts that live under %USERPROFILE%\.copilot:
+    ///   • Microsoft Scout      → m-skills\PowerAppsControl\SKILL.md  (+ upsert skills-metadata.json)
+    ///   • GitHub Copilot CLI   → skills\PowerAppsControl\SKILL.md    (folder auto-discovered; no registry)
+    /// Returns status lines, or null if the bundled skill file is missing.
     /// </summary>
-    private static string? InstallSkill(string configDir)
+    private static List<string>? InstallSkill(string configDir)
     {
         var bundled = Path.Combine(AppContext.BaseDirectory, "skill", "SKILL.md");
         if (!File.Exists(bundled)) return null;
 
-        var skillsRoot = Path.Combine(configDir, "m-skills");
-        var skillDir = Path.Combine(skillsRoot, SkillName);
-        Directory.CreateDirectory(skillDir);
-        var destMd = Path.Combine(skillDir, "SKILL.md");
-        File.Copy(bundled, destMd, overwrite: true);
+        var lines = new List<string>();
 
-        // Upsert into Scout's skill registry, only if Scout already maintains one.
-        var registry = Path.Combine(skillsRoot, "skills-metadata.json");
+        // 1) Microsoft Scout — m-skills\ + registry entry.
+        var mSkillDir = Path.Combine(configDir, "m-skills", SkillName);
+        Directory.CreateDirectory(mSkillDir);
+        var mDest = Path.Combine(mSkillDir, "SKILL.md");
+        File.Copy(bundled, mDest, overwrite: true);
+
+        var registry = Path.Combine(configDir, "m-skills", "skills-metadata.json");
         if (File.Exists(registry))
         {
             try
             {
-                UpsertSkillRegistry(registry, File.ReadAllText(destMd));
-                return $"  ✓ Companion skill     → {skillDir} (+ registered as /{SkillName})";
+                UpsertSkillRegistry(registry, File.ReadAllText(mDest));
+                lines.Add($"  ✓ Skill (Scout)       → {mSkillDir} (+ registered as /{SkillName})");
             }
             catch
             {
-                return $"  ✓ Companion skill     → {skillDir} (registry update skipped; Scout will re-index on restart)";
+                lines.Add($"  ✓ Skill (Scout)       → {mSkillDir} (registry update skipped; Scout re-indexes on restart)");
             }
         }
-        return $"  ✓ Companion skill     → {skillDir}";
+        else
+        {
+            lines.Add($"  ✓ Skill (Scout)       → {mSkillDir}");
+        }
+
+        // 2) GitHub Copilot CLI — skills\ folder (auto-discovered, no registry file).
+        try
+        {
+            var cliSkillDir = Path.Combine(configDir, "skills", SkillName);
+            Directory.CreateDirectory(cliSkillDir);
+            File.Copy(bundled, Path.Combine(cliSkillDir, "SKILL.md"), overwrite: true);
+            lines.Add($"  ✓ Skill (Copilot CLI) → {cliSkillDir}");
+        }
+        catch (Exception ex)
+        {
+            lines.Add($"  • Skill (Copilot CLI) → skipped ({ex.Message})");
+        }
+
+        return lines;
     }
 
-    /// <summary>Remove the companion skill's folder and its skills-metadata.json entry.</summary>
+    /// <summary>Remove the companion skill from both hosts (folders + Scout's registry entry).</summary>
     private static bool UninstallSkill(string configDir)
     {
         bool removed = false;
-        var skillsRoot = Path.Combine(configDir, "m-skills");
-        var skillDir = Path.Combine(skillsRoot, SkillName);
-        try { if (Directory.Exists(skillDir)) { Directory.Delete(skillDir, recursive: true); removed = true; } }
+
+        // Scout folder.
+        var mSkillDir = Path.Combine(configDir, "m-skills", SkillName);
+        try { if (Directory.Exists(mSkillDir)) { Directory.Delete(mSkillDir, recursive: true); removed = true; } }
         catch { /* best effort */ }
 
-        var registry = Path.Combine(skillsRoot, "skills-metadata.json");
+        // Copilot CLI folder.
+        var cliSkillDir = Path.Combine(configDir, "skills", SkillName);
+        try { if (Directory.Exists(cliSkillDir)) { Directory.Delete(cliSkillDir, recursive: true); removed = true; } }
+        catch { /* best effort */ }
+
+        // Scout registry entry.
+        var registry = Path.Combine(configDir, "m-skills", "skills-metadata.json");
         if (File.Exists(registry))
         {
             try
