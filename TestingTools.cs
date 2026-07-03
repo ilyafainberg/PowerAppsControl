@@ -642,7 +642,6 @@ public static class TestingTools
 
         var session = TestSessionManager.Current;
         session.Mode = "smoke";
-        session.Hud.Show(session.AppName, "smoke"); // ensure HUD headline reflects smoke mode
 
         StepResult sr;
         try
@@ -663,11 +662,16 @@ public static class TestingTools
     }
 
     [McpServerTool(Name = "get_suggested_script")]
-    [Description("Returns the draft script assembled from the smoke_step actions taken this session, as ready-to-" +
-                 "use JSON. Hand this to the user as the suggested repeatable test, run it with run_test_script to " +
-                 "verify, and/or persist it with save_test_script.")]
+    [Description("Returns a plain-English OBSERVATION LOG of the smoke_step actions taken this session (what was " +
+                 "done, which control/element was targeted, and the result of each step) — NOT a finished script.\n" +
+                 "IMPORTANT: script generation is the SKILL's job, not the server's. Do not hand this raw log to the " +
+                 "user as the test. Instead, use it (plus your understanding of the app) to AUTHOR a detailed, " +
+                 "natural-language test script: numbered steps in plain language that reference controls by their " +
+                 "visible name/label and state the expected outcome of each step. AVOID pixel coordinates — a " +
+                 "coordinate-based script breaks the moment the layout changes. A natural-language script stays valid " +
+                 "and can be re-executed by an agent (which resolves each step to clickElement/type/etc. at run time).")]
     public static string GetSuggestedScript(
-        [Description("Optional name for the script. Default '<app> smoke test'.")]
+        [Description("Optional name for the test. Default '<app> smoke test'.")]
         string? name = null)
     {
         var gate = TestSessionManager.RequireSession("get_suggested_script");
@@ -677,14 +681,39 @@ public static class TestingTools
         if (s.DraftSteps.Count == 0)
             return "No smoke steps have been recorded yet. Use smoke_step to explore the app first.";
 
-        var script = new TestScript
-        {
-            Name = string.IsNullOrWhiteSpace(name) ? $"{s.AppName} smoke test" : name!,
-            AppName = s.AppName,
-            Steps = s.DraftSteps.ToList(),
-        };
-        return "Suggested repeatable test script (" + script.Steps.Count + " steps):\n" + TestJson.Write(script);
+        var title = string.IsNullOrWhiteSpace(name) ? $"{s.AppName} smoke test" : name!;
+        var sb = new StringBuilder();
+        sb.AppendLine($"Observation log for '{title}' — {s.DraftSteps.Count} action(s) recorded against '{s.AppName}':");
+        sb.AppendLine();
+        for (int i = 0; i < s.DraftSteps.Count; i++)
+            sb.AppendLine($"  {i + 1}. {DescribeObservation(s.DraftSteps[i])}");
+        sb.AppendLine();
+        sb.AppendLine("NEXT — YOU (the skill) author the test script from these observations:");
+        sb.AppendLine("  • Write it as a DETAILED, NATURAL-LANGUAGE numbered list of steps (not JSON, not coordinates).");
+        sb.AppendLine("  • Reference each control by its visible NAME/LABEL, and state the EXPECTED OUTCOME of each step");
+        sb.AppendLine("    (e.g. \"Click the 'Submit' button — the confirmation 'Thank you' should appear\").");
+        sb.AppendLine("  • Start with a step that waits for the app to finish loading.");
+        sb.AppendLine("  • Present that script to the user. To replay it later, an agent converts each step to the");
+        sb.AppendLine("    appropriate action (clickElement by name, type, waitForElement, assertElement) at run time.");
+        return sb.ToString();
     }
+
+    /// <summary>Render one recorded smoke step as a plain-English observation (name/label based, not coordinates).</summary>
+    private static string DescribeObservation(TestStep step) => step.Action switch
+    {
+        StepAction.Click          => $"Clicked in the app{(step.Description is not null ? $" to {step.Description}" : " at a location")}.",
+        StepAction.ClickElement   => $"Activated the control '{step.Name ?? step.AutomationId ?? step.ControlType}'{Desc(step)}.",
+        StepAction.Type           => $"Typed \"{step.Keys}\"{Desc(step)}.",
+        StepAction.Scroll         => $"Scrolled the view{Desc(step)}.",
+        StepAction.Wait           => $"Waited for the UI to settle{Desc(step)}.",
+        StepAction.WaitForElement => $"Waited for '{step.Name ?? step.AutomationId}' to appear{Desc(step)}.",
+        StepAction.AssertElement  => $"Checked that '{step.Name ?? step.AutomationId}' was {(step.ShouldExist == false ? "absent" : "present")}{Desc(step)}.",
+        StepAction.Screenshot     => $"Captured the screen{Desc(step)}.",
+        _ => step.Label(),
+    };
+
+    private static string Desc(TestStep step) =>
+        string.IsNullOrWhiteSpace(step.Description) ? "" : $" — {step.Description}";
 
     // =========================================================================
     //  Script library

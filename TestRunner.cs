@@ -74,8 +74,8 @@ internal static class TestRunner
                     ThrowIfAborted();
 
                     var hud = $"Run {run}/{runs} · step {i + 1}/{steps.Count}: {step.Label()}";
-                    if (targets.Count > 1) hud += $" · win {wi + 1}/{targets.Count}";
-                    session.Hud.SetStatus(hud);
+                    // Show the status on the frame pill of the window being driven.
+                    WindowControl.SetStatus(targets[wi].Hwnd, hud, session.IsRecording);
 
                     var sr = ExecuteStep(session, targets[wi].Hwnd, step, i, passId, wi);
                     perWindow[wi].Steps.Add(sr);
@@ -98,7 +98,7 @@ internal static class TestRunner
     /// <summary>Execute a single exploratory step on the primary window (used by smoke_step).</summary>
     internal static StepResult ExecuteSmoke(TestSession session, TestStep step)
     {
-        session.Hud.SetStatus($"Smoke · step {session.DraftSteps.Count + 1}: {step.Label()}");
+        WindowControl.SetStatus(session.PrimaryHwnd, $"Smoke · step {session.DraftSteps.Count + 1}: {step.Label()}", session.IsRecording);
         return ExecuteStep(session, session.PrimaryHwnd, step, session.DraftSteps.Count, 0, 0);
     }
 

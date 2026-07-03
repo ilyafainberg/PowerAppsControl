@@ -146,7 +146,7 @@ internal sealed class Program
         builder.Services
             .AddMcpServer(o =>
             {
-                o.ServerInfo = new() { Name = "PowerAppsControl", Version = "1.3.2" };
+                o.ServerInfo = new() { Name = "PowerAppsControl", Version = "1.4.0" };
                 o.ServerInstructions = ServerInstructions;
             })
             .WithStdioServerTransport()

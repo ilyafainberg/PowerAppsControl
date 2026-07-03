@@ -81,17 +81,19 @@ gated on an active session, so nothing runs (and nothing is recorded/reported) u
 start one. Always end the session even if a run fails — that's what writes the report.
 
 1. **`start_test_session(appName, windowQuery)`** — pins the app window under agent control
-   (crimson "Under Agent Control" frame, works for maximized windows too), starts the
-   video, shows the live HUD. Use the app label for `appName` and a distinctive part of the
-   window title from Step 1 for `windowQuery` (e.g. `"PowerCAT BVA"`, `"Warehouses Active"`).
+   (a crimson rounded frame that hugs the window border, works for maximized windows too),
+   starts the video, and shows an **integrated status pill on the frame's top edge** with a
+   pulsing REC dot + the live step. Use the app label for `appName` and a distinctive part of
+   the window title from Step 1 for `windowQuery` (e.g. `"PowerCAT BVA"`, `"Warehouses Active"`).
 2. Then, by mode:
 
    **A) Smoke test** — recon with `screenshot_window`, then walk the primary flows with
    repeated **`smoke_step(action, description, ...)`** (each call performs ONE action and
-   records it to a draft script). Cover: open menus/nav, fill an input, submit/navigate,
-   go back. Screenshot to VERIFY after meaningful actions. When done, call
-   **`get_suggested_script`** to hand the user the repeatable script, and optionally
-   **`save_test_script(name, fromDraft=true)`**.
+   records it). Cover: open menus/nav, fill an input, submit/navigate, go back. Screenshot to
+   VERIFY after meaningful actions. When done, call **`get_suggested_script`** — it returns a
+   plain-English **observation log**, NOT a finished script. **YOU then author the test
+   script** (see "Writing the test script" below), present it to the user, and optionally save
+   a runnable form with `save_test_script`.
 
    **B) Explore & propose** — recon with `screenshot_window` + `find_element`, then present
    a concrete step table and get approval via **`m_ask_user`** ("Approve / Change / Cancel").
@@ -116,7 +118,41 @@ Prefer `waitForElement` steps in scripts to synchronize on load.
 
 ---
 
-## Test script format (JSON)
+## Writing the test script (natural language first)
+
+**Script generation is YOUR job, not the server's.** `get_suggested_script` only returns
+what was observed; you turn it into the test. Write the script the user keeps as a
+**detailed, natural-language, numbered list of steps** — never a list of pixel coordinates.
+A coordinate script breaks the instant the layout, resolution, theme, or data changes; a
+natural-language script stays valid because an agent re-resolves each step to a concrete
+control at run time.
+
+For each step, describe **the intent, the target control by its visible name/label, and the
+expected outcome**:
+
+```
+Test: Submit a referral (Contoso Referrals)
+1. Wait for the app to finish loading — the "New referral" button should be visible.
+2. Click the "New referral" button — the referral form opens.
+3. In the "Patient name" field, enter "Jane Doe", then Tab to the next field.
+4. Click "Submit".
+5. Verify a "Thank you" confirmation message appears.
+```
+
+Rules for good steps: one action each; name the control the way the user sees it; state
+what should happen; add explicit "wait for … to appear" steps around anything that loads;
+call out any read-only vs. data-changing step. This natural-language script is the
+deliverable. When you (or a future agent) need to *replay* it, translate each line to the
+JSON actions below at run time — **prefer `clickElement`/`waitForElement`/`assertElement`
+by name**, and only fall back to a coordinate `click` for canvas controls UI Automation
+can't see.
+
+---
+
+## Test script format (JSON) — the run-time execution form
+
+When you actually execute a script with `run_test_script`, pass it as JSON. This is the
+machine form the natural-language script compiles down to at run time:
 
 ```json
 {

@@ -37,3 +37,6 @@ desktop.ini
 _*.png
 _*.jpg
 _*.ps1
+# Stray Adobe Premiere auto-save noise (not part of this project)
+*.prproj
+Adobe Premiere Pro Auto-Save/

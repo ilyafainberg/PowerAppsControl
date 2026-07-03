@@ -30,6 +30,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 
 namespace PowerAppsControl;
@@ -114,6 +115,27 @@ internal static class WindowControl
     {
         if (UiDispatcher is null) return false;
         return UiDispatcher.Invoke(() => ReleaseOnUi(hwnd, restore: true));
+    }
+
+    /// <summary>
+    /// Update the integrated status pill on a controlled window's frame: the live status line
+    /// (e.g. "Run 2/5 · step 3/8: click Submit") and whether a REC dot should pulse. This is how
+    /// the recording indicator + progress live ON the frame instead of a separate HUD window.
+    /// </summary>
+    public static void SetStatus(IntPtr hwnd, string? status, bool recording)
+    {
+        if (UiDispatcher is null) return;
+        UiDispatcher.Invoke(() =>
+        {
+            lock (Gate)
+            {
+                if (Controlled_.TryGetValue(hwnd, out var c))
+                {
+                    c.Tag.SetStatus(status, recording);
+                    PositionOverlays(c, force: true); // width may have changed with the new text
+                }
+            }
+        });
     }
 
     /// <summary>Release every controlled window. Returns how many were released.</summary>
@@ -213,18 +235,13 @@ internal static class WindowControl
     }
 
     /// <summary>
-    /// Place the crimson frame around the target and the tag near its top edge, in
-    /// physical pixels, then re-assert top-most z-order so they stay above the (also
-    /// top-most) target even after the user clicks it.
+    /// Draw the crimson frame HUGGING the target window's border (thin, rounded) and the
+    /// integrated status pill attached to its top edge. Then re-assert top-most z-order.
     ///
-    /// Two layouts:
-    ///  • NORMAL window — the frame is drawn OUTSET (inflated around the window) and the
-    ///    tag sits just ABOVE the titlebar, the classic "picture frame" look.
-    ///  • MAXIMIZED window — a maximized window's rect extends a few pixels past every
-    ///    monitor edge and its top is flush with the monitor, so an outset frame and an
-    ///    above-titlebar tag would fall off-screen. Here we CLAMP the frame to the
-    ///    monitor's visible bounds, draw it INSET (just inside the edges) and drop the
-    ///    tag INSIDE the top edge so both stay fully visible.
+    ///  • NORMAL window   — frame outset by 1px (hugs the edge), rounded corners; the pill
+    ///                      hangs as a tab on the top-left, its bottom sitting on the frame.
+    ///  • MAXIMIZED window— frame clamped to the monitor and drawn INSET (so it stays on
+    ///                      screen); the pill sits just inside the top-left.
     /// </summary>
     private static void PositionOverlays(Controlled c, bool force)
     {
@@ -238,51 +255,57 @@ internal static class WindowControl
 
         uint dpi = Win32.GetDpiForWindow(c.Target);
         double scale = dpi == 0 ? 1.0 : dpi / 96.0;
-        int bt   = (int)Math.Round(3 * scale);    // border thickness (physical px)
-        int tagH = (int)Math.Round(26 * scale);
-        int tagW = (int)Math.Round(210 * scale);
+        int pad  = (int)Math.Round(1 * scale);    // how far the frame sits outside the window edge
+        int tagH = (int)Math.Round(30 * scale);
 
         var borderH = new WindowInteropHelper(c.Border).Handle;
         var tagHwnd = new WindowInteropHelper(c.Tag).Handle;
 
         uint zFlags = Win32.SWP_NOACTIVATE;
-        uint moveFlags = moved ? zFlags : zFlags | Win32.SWP_NOMOVE | Win32.SWP_NOSIZE;
 
         bool maximized = Win32.IsZoomed(c.Target);
+        c.Border.SetMaximized(maximized, scale);
+        c.Tag.SetMaximized(maximized);
 
-        int fx, fy, fw, fh;   // frame rect
-        int tx, ty;           // tag origin
+        int fx, fy, fw, fh;   // frame rect (physical px)
 
         if (maximized)
         {
-            // Clamp to the monitor's work area so nothing spills off-screen, and inset the
-            // border/tag by the border thickness so both are drawn INSIDE the visible edge.
             var vis = VisibleBounds(c.Target, r);
+            int bt = (int)Math.Round(2 * scale);
             fx = vis.Left + bt;
             fy = vis.Top + bt;
             fw = Math.Max(1, vis.Width - bt * 2);
             fh = Math.Max(1, vis.Height - bt * 2);
-            // Tag sits just inside the top-left of the visible area.
-            tx = vis.Left + bt;
-            ty = vis.Top + bt;
         }
         else
         {
-            // Outset frame: inflate the window rect by the border thickness on every side.
-            fx = r.Left - bt;
-            fy = r.Top - bt;
-            fw = (r.Right - r.Left) + bt * 2;
-            fh = (r.Bottom - r.Top) + bt * 2;
-            // Tag above the titlebar (and above the frame's top edge).
-            tx = r.Left;
-            ty = r.Top - tagH - bt;
+            // Hug: outset by just `pad` so the frame sits right on the window's edge.
+            fx = r.Left - pad;
+            fy = r.Top - pad;
+            fw = (r.Right - r.Left) + pad * 2;
+            fh = (r.Bottom - r.Top) + pad * 2;
         }
 
-        c.Border.SetInset(maximized);
-        c.Tag.SetMaximized(maximized);
+        // Pill width: fit the content but clamp to the frame width.
+        int tagW = c.Tag.MeasurePhysicalWidth(scale, maxPx: Math.Max(160, fw - (int)Math.Round(8 * scale)));
 
-        Win32.SetWindowPos(borderH, Win32.HWND_TOPMOST, fx, fy, fw, fh, moveFlags);
-        Win32.SetWindowPos(tagHwnd, Win32.HWND_TOPMOST, tx, ty, tagW, tagH, moveFlags);
+        int tx, ty;
+        if (maximized)
+        {
+            tx = fx + (int)Math.Round(6 * scale);
+            ty = fy + (int)Math.Round(6 * scale);
+        }
+        else
+        {
+            // Tab on the top-left: its bottom edge rests on the frame's top border.
+            tx = fx + (int)Math.Round(4 * scale);
+            ty = fy - tagH + pad;
+        }
+
+        Win32.SetWindowPos(borderH, Win32.HWND_TOPMOST, fx, fy, fw, fh, zFlags | (moved ? 0 : Win32.SWP_NOMOVE | Win32.SWP_NOSIZE));
+        // The pill always re-sizes (its width tracks the status text), so never NOSIZE it.
+        Win32.SetWindowPos(tagHwnd, Win32.HWND_TOPMOST, tx, ty, tagW, tagH, zFlags);
     }
 
     /// <summary>
@@ -370,7 +393,7 @@ internal static class WindowControl
     //  Overlay windows (WPF)
     // -------------------------------------------------------------------------
 
-    /// <summary>Click-through crimson frame drawn around (or inside) the controlled window.</summary>
+    /// <summary>Click-through rounded crimson frame that hugs the controlled window's border.</summary>
     private sealed class OverlayBorder : Window
     {
         private readonly Border frame;
@@ -385,11 +408,16 @@ internal static class WindowControl
             ResizeMode = ResizeMode.NoResize;
             IsHitTestVisible = false;
             ShowActivated = false;
+            // Start fully off-screen so the very first paint isn't visible; PositionOverlays
+            // relocates it into place before the user can see a flicker at the default origin.
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Left = -32000; Top = -32000; Width = 1; Height = 1;
 
             frame = new Border
             {
-                BorderBrush = Brushes.Crimson,
-                BorderThickness = new Thickness(3),
+                BorderBrush = PacTheme.Accent,
+                BorderThickness = new Thickness(2),
+                CornerRadius = new CornerRadius(9),
                 Background = Brushes.Transparent, // hollow centre → target stays visible
             };
             Content = frame;
@@ -404,20 +432,27 @@ internal static class WindowControl
             };
         }
 
-        /// <summary>
-        /// When the target is maximized we draw the frame INSET; rounding the corners a
-        /// touch reads as a deliberate "inside" highlight rather than a clipped outer frame.
-        /// </summary>
-        public void SetInset(bool inset)
+        /// <summary>Slightly thicker + larger radius when maximized so the inset frame still reads.</summary>
+        public void SetMaximized(bool maximized, double scale)
         {
-            frame.CornerRadius = inset ? new CornerRadius(6) : new CornerRadius(0);
+            frame.BorderThickness = new Thickness(maximized ? 2 : 2);
+            frame.CornerRadius = new CornerRadius(maximized ? 10 : 9);
         }
     }
 
-    /// <summary>Interactive "Under Agent Control" tag with an ✕ button.</summary>
+    /// <summary>
+    /// Integrated status pill that sits ON the frame's top edge: a pulsing REC dot (while
+    /// recording), the "Under Agent Control" label with the live status line, and a nicely
+    /// styled ✕ close button. Replaces the old separate top-center HUD.
+    /// </summary>
     private sealed class OverlayTag : Window
     {
         private readonly Border shell;
+        private readonly Ellipse recDot;
+        private readonly TextBlock label;
+        private readonly TextBlock statusText;
+        private System.Windows.Media.Animation.DoubleAnimation? pulse;
+        private bool recording;
 
         public event Action? CloseRequested;
 
@@ -430,47 +465,71 @@ internal static class WindowControl
             Topmost = true;
             ResizeMode = ResizeMode.NoResize;
             ShowActivated = false;
+            SnapsToDevicePixels = true;
+            // Start off-screen to avoid a flicker at the default origin before positioning.
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Left = -32000; Top = -32000; Width = 1; Height = 1;
 
-            var label = new TextBlock
+            recDot = new Ellipse
+            {
+                Width = 9, Height = 9,
+                Fill = Brushes.White,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(12, 0, 8, 0),
+                Visibility = Visibility.Collapsed,
+            };
+
+            label = new TextBlock
             {
                 Text = "Under Agent Control",
                 Foreground = Brushes.White,
+                FontFamily = PacTheme.Font,
                 FontWeight = FontWeights.SemiBold,
                 FontSize = 12,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(10, 0, 6, 0),
+                Margin = new Thickness(12, 0, 0, 0),
                 ToolTip = title,
             };
 
-            var close = new Button
+            statusText = new TextBlock
             {
-                Content = "✕",
-                Foreground = Brushes.White,
-                Background = Brushes.Transparent,
-                BorderThickness = new Thickness(0),
+                Text = "",
+                Foreground = new SolidColorBrush(Color.FromArgb(0xE0, 0xFF, 0xFF, 0xFF)),
+                FontFamily = PacTheme.Font,
                 FontSize = 12,
-                Width = 22,
-                Height = 22,
-                Padding = new Thickness(0),
-                Cursor = Cursors.Hand,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 4, 0),
-                ToolTip = "Release this window (restore normal state)",
+                Margin = new Thickness(8, 0, 0, 0),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Visibility = Visibility.Collapsed,
             };
-            close.Click += (_, _) => CloseRequested?.Invoke();
 
-            var panel = new StackPanel
+            var sep = new Border
             {
-                Orientation = Orientation.Horizontal,
+                Width = 1, Height = 14,
+                Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)),
+                Margin = new Thickness(10, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
+                Visibility = Visibility.Collapsed,
             };
+            statusSep = sep;
+
+            var close = BuildCloseButton();
+
+            var panel = new DockPanel { LastChildFill = true, VerticalAlignment = VerticalAlignment.Stretch };
+            DockPanel.SetDock(recDot, Dock.Left);
+            DockPanel.SetDock(label, Dock.Left);
+            DockPanel.SetDock(sep, Dock.Left);
+            DockPanel.SetDock(close, Dock.Right);
+            panel.Children.Add(recDot);
             panel.Children.Add(label);
+            panel.Children.Add(sep);
             panel.Children.Add(close);
+            panel.Children.Add(statusText); // fills remaining space
 
             shell = new Border
             {
-                Background = Brushes.Crimson,
-                CornerRadius = new CornerRadius(4, 4, 0, 0),
+                Background = PacTheme.Accent,
+                CornerRadius = new CornerRadius(7, 7, 0, 0),
                 Child = panel,
             };
             Content = shell;
@@ -484,14 +543,116 @@ internal static class WindowControl
             };
         }
 
-        /// <summary>
-        /// For a maximized window the tag sits INSIDE the top edge, so round the BOTTOM
-        /// corners (it hangs down into the window) instead of the top corners.
-        /// </summary>
+        private Border statusSep = null!;
+
+        /// <summary>A borderless ✕ with a tasteful hover: soft white overlay circle, white glyph — no blue.</summary>
+        private Button BuildCloseButton()
+        {
+            var glyph = new TextBlock
+            {
+                Text = "✕",
+                Foreground = Brushes.White,
+                FontFamily = PacTheme.Font,
+                FontSize = 11,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            var bg = new Border
+            {
+                Background = Brushes.Transparent,
+                CornerRadius = new CornerRadius(4),
+                Width = 22, Height = 22,
+                Margin = new Thickness(6, 4, 6, 4),
+                Child = glyph,
+            };
+
+            var btn = new Button
+            {
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(0),
+                Cursor = Cursors.Hand,
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = "Stop & release this window",
+                Focusable = false,
+            };
+
+            // Strip the default (blue) button chrome entirely — the button IS the bordered box.
+            var template = new ControlTemplate(typeof(Button));
+            var cp = new FrameworkElementFactory(typeof(ContentPresenter));
+            cp.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+            cp.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+            template.VisualTree = cp;
+            btn.Template = template;
+            btn.Content = bg;
+
+            var softWhite = new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
+            btn.MouseEnter += (_, _) => bg.Background = softWhite;
+            btn.MouseLeave += (_, _) => bg.Background = Brushes.Transparent;
+            btn.PreviewMouseLeftButtonDown += (_, _) => bg.Background = new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF));
+            btn.Click += (_, _) => CloseRequested?.Invoke();
+            return btn;
+        }
+
+        /// <summary>Update the live status line and toggle/pulse the REC dot.</summary>
+        public void SetStatus(string? status, bool recording)
+        {
+            this.recording = recording;
+            recDot.Visibility = recording ? Visibility.Visible : Visibility.Collapsed;
+            if (recording)
+            {
+                if (pulse is null)
+                {
+                    pulse = new System.Windows.Media.Animation.DoubleAnimation(1.0, 0.3, TimeSpan.FromMilliseconds(750))
+                    {
+                        AutoReverse = true,
+                        RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+                    };
+                }
+                recDot.BeginAnimation(UIElement.OpacityProperty, pulse);
+            }
+            else
+            {
+                recDot.BeginAnimation(UIElement.OpacityProperty, null);
+            }
+
+            bool has = !string.IsNullOrWhiteSpace(status);
+            statusText.Text = status ?? "";
+            statusText.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
+            statusSep.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        /// <summary>Round the BOTTOM corners when maximized (the pill hangs down into the window).</summary>
         public void SetMaximized(bool maximized)
         {
-            shell.CornerRadius = maximized ? new CornerRadius(0, 0, 4, 4) : new CornerRadius(4, 4, 0, 0);
+            shell.CornerRadius = maximized ? new CornerRadius(0, 0, 7, 7) : new CornerRadius(7, 7, 0, 0);
         }
+
+        /// <summary>Measure the pill's natural width in physical pixels, clamped to <paramref name="maxPx"/>.</summary>
+        public int MeasurePhysicalWidth(double scale, int maxPx)
+        {
+            // Let the status ellipsize: measure with the label/dot/button fixed and cap the total.
+            shell.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            double dip = shell.DesiredSize.Width;
+            if (dip < 1) dip = 180;
+            int px = (int)Math.Ceiling(dip * scale);
+            // Add a little breathing room for the status text when present.
+            if (statusText.Visibility == Visibility.Visible) px += (int)Math.Round(120 * scale);
+            return Math.Max((int)Math.Round(160 * scale), Math.Min(px, maxPx));
+        }
+    }
+}
+
+/// <summary>Shared Power CAT visual tokens for the overlay chrome (matches the report theme).</summary>
+internal static class PacTheme
+{
+    // Power CAT accent (#D85A86) used across the report + overlay for a consistent look.
+    public static readonly SolidColorBrush Accent = new(Color.FromRgb(0xD8, 0x5A, 0x86));
+    public static readonly FontFamily Font = new("Segoe UI");
+
+    static PacTheme()
+    {
+        Accent.Freeze();
     }
 }
 

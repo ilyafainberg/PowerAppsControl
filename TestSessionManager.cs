@@ -31,7 +31,12 @@ internal sealed class TestSession
     public string Mode { get; set; } = "scripted";
 
     public SessionRecorder? Recorder { get; set; }
-    public TestHud Hud { get; } = new();
+
+    /// <summary>True while a video recording is active (drives the REC dot on the frame pill).</summary>
+    public bool IsRecording => Recorder is not null;
+
+    /// <summary>Update the integrated status pill on the primary window's frame.</summary>
+    public void SetStatus(string? status) => WindowControl.SetStatus(PrimaryHwnd, status, IsRecording);
 
     /// <summary>Steps captured live during a smoke test → becomes the suggested script.</summary>
     public List<TestStep> DraftSteps { get; } = new();
@@ -127,8 +132,6 @@ internal static class TestSessionManager
             foreach (var w in windows)
                 WindowControl.Acquire(w.Hwnd, w.Title);
 
-            session.Hud.Show(appName, session.Mode);
-
             warning = null;
             if (recordVideo)
             {
@@ -136,6 +139,10 @@ internal static class TestSessionManager
                 session.Recorder = rec;
                 warning = recErr;
             }
+
+            // Show the integrated status pill (REC dot lights up if we're recording).
+            foreach (var w in windows)
+                WindowControl.SetStatus(w.Hwnd, "Starting session…", session.IsRecording);
 
             active = session;
             return session;
@@ -182,11 +189,10 @@ internal static class TestSessionManager
             try { File.WriteAllText(s.ReportJson, TestJson.Write(report)); } catch { /* best effort */ }
             try { ReportGenerator.Write(report, s.ReportHtml); } catch { /* best effort */ }
 
-            s.Hud.SetDone(totalRuns == 0
-                ? "Session complete"
-                : $"Done · {passedRuns}/{totalRuns} runs passed");
+            // Recording has stopped; drop the REC dot and show the final tally briefly on the frame.
+            foreach (var w in s.Windows)
+                WindowControl.SetStatus(w.Hwnd, totalRuns == 0 ? "Session complete" : $"Done · {passedRuns}/{totalRuns} runs passed", recording: false);
             Thread.Sleep(1200); // let the user see the final state
-            s.Hud.Hide();
 
             WindowControl.ReleaseAll();
 
