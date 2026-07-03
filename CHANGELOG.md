@@ -4,6 +4,16 @@ All notable changes to **PowerAppsControl** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-07-03
+
+### Added
+- **Companion skill `/PowerAppsControl`.** A workflow playbook that teaches the agent how
+  to sequence the tools (open & verify → choose a mode → recorded session → report). This
+  fixes agents seeing the tools but not knowing what to do with them. It ships next to the
+  exe (`skill/SKILL.md`) and is installed by `--register` into
+  `%USERPROFILE%\.copilot\m-skills\PowerAppsControl` and Scout's skill index (when present);
+  `--unregister` removes it.
+
 ## [1.2.0] — 2026-07-02
 
 ### Added
@@ -54,6 +64,7 @@ Initial public release.
   (`find_window`, `control_window`, `screenshot_window`, `click_in_window`, `send_keys`,
   `find_element`, `record_window`, and more).
 
+[1.3.0]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.3.0
 [1.2.0]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.2.0
 [1.1.0]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.0.0

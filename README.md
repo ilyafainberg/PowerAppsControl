@@ -212,6 +212,15 @@ The Scout entry is only written if that file already exists (i.e. Scout is insta
 The tool list is discovered by reflection, so it always matches what the server exposes.
 **Restart Scout / the Copilot CLI after registering** for the change to take effect.
 
+### Companion skill (`/PowerAppsControl`)
+
+Registering also installs a **companion skill** that teaches the agent the end-to-end
+workflow (open & verify → choose a mode → recorded session → report). Without it, agents
+see the tools but don't know how to sequence them. It's installed to
+`%USERPROFILE%\.copilot\m-skills\PowerAppsControl\SKILL.md` and registered in Scout's skill
+index (when present). Invoke it explicitly with `/PowerAppsControl`, or just say
+"test my power app <url>". `--unregister` removes it.
+
 ## Build & run
 
 ```powershell

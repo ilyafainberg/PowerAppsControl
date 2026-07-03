@@ -36,6 +36,7 @@ internal static class McpRegistration
     private const string CopilotCliServerName = "PowerAppsControl";   // mcp-config.json key
     private const string ScoutServerKey       = "powerappscontrol";   // m-mcp-servers.json key
     private const string ScoutDisplayName     = "PowerAppsControl";
+    private const string SkillName            = "PowerAppsControl";    // m-skills folder + skill name
 
     private static readonly JsonSerializerOptions WriteOpts = new() { WriteIndented = true };
 
@@ -72,6 +73,10 @@ internal static class McpRegistration
                 lines.Add($"  • Microsoft Scout     → skipped (no {scoutPath}; Scout not detected)");
             }
 
+            // 3) Companion skill (/PowerAppsControl) — teaches the agent the workflow.
+            var skillMsg = InstallSkill(dir);
+            if (skillMsg is not null) lines.Add(skillMsg);
+
             if (!quiet)
             {
                 Console.WriteLine($"PowerAppsControl registered as an MCP server ({tools.Count} tools):");
@@ -100,6 +105,8 @@ internal static class McpRegistration
 
             var scoutPath = Path.Combine(dir, "m-mcp-servers.json");
             if (RemoveKey(scoutPath, "servers", ScoutServerKey)) removed.Add(scoutPath);
+
+            if (UninstallSkill(dir)) removed.Add(Path.Combine(dir, "m-skills", SkillName));
 
             if (!quiet)
             {
@@ -188,6 +195,131 @@ internal static class McpRegistration
         var tmp = path + ".tmp";
         File.WriteAllText(tmp, root.ToJsonString(WriteOpts));
         File.Move(tmp, path, overwrite: true); // atomic-ish replace so a crash can't truncate the config
+    }
+
+    /// <summary>
+    /// Install the companion skill (/PowerAppsControl) so the agent knows the workflow:
+    /// copy the bundled skill\SKILL.md into %USERPROFILE%\.copilot\m-skills\PowerAppsControl,
+    /// and upsert it into Scout's skills-metadata.json (only if that registry exists — i.e.
+    /// Scout is installed). Returns a status line, or null if the bundled skill is missing.
+    /// </summary>
+    private static string? InstallSkill(string configDir)
+    {
+        var bundled = Path.Combine(AppContext.BaseDirectory, "skill", "SKILL.md");
+        if (!File.Exists(bundled)) return null;
+
+        var skillsRoot = Path.Combine(configDir, "m-skills");
+        var skillDir = Path.Combine(skillsRoot, SkillName);
+        Directory.CreateDirectory(skillDir);
+        var destMd = Path.Combine(skillDir, "SKILL.md");
+        File.Copy(bundled, destMd, overwrite: true);
+
+        // Upsert into Scout's skill registry, only if Scout already maintains one.
+        var registry = Path.Combine(skillsRoot, "skills-metadata.json");
+        if (File.Exists(registry))
+        {
+            try
+            {
+                UpsertSkillRegistry(registry, File.ReadAllText(destMd));
+                return $"  ✓ Companion skill     → {skillDir} (+ registered as /{SkillName})";
+            }
+            catch
+            {
+                return $"  ✓ Companion skill     → {skillDir} (registry update skipped; Scout will re-index on restart)";
+            }
+        }
+        return $"  ✓ Companion skill     → {skillDir}";
+    }
+
+    /// <summary>Remove the companion skill's folder and its skills-metadata.json entry.</summary>
+    private static bool UninstallSkill(string configDir)
+    {
+        bool removed = false;
+        var skillsRoot = Path.Combine(configDir, "m-skills");
+        var skillDir = Path.Combine(skillsRoot, SkillName);
+        try { if (Directory.Exists(skillDir)) { Directory.Delete(skillDir, recursive: true); removed = true; } }
+        catch { /* best effort */ }
+
+        var registry = Path.Combine(skillsRoot, "skills-metadata.json");
+        if (File.Exists(registry))
+        {
+            try
+            {
+                var arr = JsonNode.Parse(File.ReadAllText(registry)) as JsonArray;
+                if (arr is not null)
+                {
+                    var id = "local-" + SkillName;
+                    for (int i = arr.Count - 1; i >= 0; i--)
+                        if (arr[i]?["id"]?.GetValue<string>() == id) { arr.RemoveAt(i); removed = true; }
+                    File.WriteAllText(registry, arr.ToJsonString(WriteOpts));
+                }
+            }
+            catch { /* best effort */ }
+        }
+        return removed;
+    }
+
+    /// <summary>
+    /// Parse a SKILL.md (YAML frontmatter + body) and upsert it into Scout's skills-metadata.json
+    /// array as { id, name, description, instructions=body, enabled, createdAt, scope=local }.
+    /// </summary>
+    private static void UpsertSkillRegistry(string registryPath, string skillMd)
+    {
+        var (name, description, body) = ParseSkillMd(skillMd);
+        if (string.IsNullOrEmpty(name)) name = SkillName;
+
+        var arr = JsonNode.Parse(File.ReadAllText(registryPath)) as JsonArray ?? new JsonArray();
+        var id = "local-" + name;
+
+        // Remove any existing entry with this id.
+        for (int i = arr.Count - 1; i >= 0; i--)
+            if (arr[i]?["id"]?.GetValue<string>() == id) arr.RemoveAt(i);
+
+        arr.Add(new JsonObject
+        {
+            ["id"] = id,
+            ["name"] = name,
+            ["description"] = description,
+            ["instructions"] = body,
+            ["enabled"] = true,
+            ["createdAt"] = "",
+            ["scope"] = "local",
+        });
+        File.WriteAllText(registryPath, arr.ToJsonString(WriteOpts));
+    }
+
+    /// <summary>Split a SKILL.md into (name, description, body) — name/description from the YAML frontmatter.</summary>
+    private static (string name, string description, string body) ParseSkillMd(string md)
+    {
+        md = md.Replace("\r\n", "\n");
+        string name = "", description = "", body = md.Trim();
+        if (md.StartsWith("---\n"))
+        {
+            int end = md.IndexOf("\n---", 4, StringComparison.Ordinal);
+            if (end > 0)
+            {
+                var fm = md.Substring(4, end - 4);
+                body = md[(end + 4)..].TrimStart('\n').Trim();
+                name = ExtractFrontmatter(fm, "name");
+                description = ExtractFrontmatter(fm, "description");
+            }
+        }
+        return (name, description, body);
+    }
+
+    private static string ExtractFrontmatter(string fm, string key)
+    {
+        foreach (var line in fm.Split('\n'))
+        {
+            var t = line.TrimStart();
+            if (t.StartsWith(key + ":", StringComparison.Ordinal))
+            {
+                var v = t[(key.Length + 1)..].Trim();
+                if (v.Length >= 2 && v[0] == '"' && v[^1] == '"') v = v[1..^1];
+                return v;
+            }
+        }
+        return "";
     }
 
     /// <summary>
