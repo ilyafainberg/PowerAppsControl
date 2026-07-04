@@ -13,6 +13,8 @@
 
 <video src="https://github.com/user-attachments/assets/d6599636-906b-47ab-88ad-ddcf99eb32a5" controls muted autoplay loop playsinline width="880"></video>
 
+</div>
+
 ---
 
 An **MCP server for UX testing of Power Apps**. It drives a canvas or model-driven
