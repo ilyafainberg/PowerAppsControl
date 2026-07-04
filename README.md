@@ -11,7 +11,7 @@
 
 
 
-https://github.com/user-attachments/assets/d6599636-906b-47ab-88ad-ddcf99eb32a5
+<video src="https://github.com/user-attachments/assets/d6599636-906b-47ab-88ad-ddcf99eb32a5" controls muted autoplay loop playsinline width="880"></video>
 <video src="https://github.com/ilyafainberg/PowerAppsControl/raw/main/docs/powerappscontrol-demo.mp4" controls muted autoplay loop playsinline width="880"></video>
 
 _If the player doesn't load inline, ▶ [**watch the demo**](docs/powerappscontrol-demo.mp4) (silent)._
