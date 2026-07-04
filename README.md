@@ -9,6 +9,9 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6)
 
+
+
+https://github.com/user-attachments/assets/d6599636-906b-47ab-88ad-ddcf99eb32a5
 <video src="https://github.com/ilyafainberg/PowerAppsControl/raw/main/docs/powerappscontrol-demo.mp4" controls muted autoplay loop playsinline width="880"></video>
 
 _If the player doesn't load inline, ▶ [**watch the demo**](docs/powerappscontrol-demo.mp4) (silent)._
