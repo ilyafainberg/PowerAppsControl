@@ -19,6 +19,66 @@ engine: the whole low-level interaction layer is reused, with a UX-testing layer
 Built for **Microsoft Scout** and any MCP-compatible host. Windows only
 (.NET 10, PerMonitor-V2 DPI-aware).
 
+## Demo
+
+<video src="https://github.com/ilyafainberg/PowerAppsControl/raw/main/docs/powerappscontrol-demo.mp4" controls width="100%"></video>
+
+> If the player doesn't load inline, [watch the demo here](docs/powerappscontrol-demo.mp4)
+> (the video is silent).
+
+---
+
+## Quick start (first-time users)
+
+1. **Install.** Download the latest **[Release](https://github.com/ilyafainberg/PowerAppsControl/releases)**:
+   - **Installer (recommended):** grab `PowerAppsControl-<ver>-setup.zip`, unzip, run the
+     `.exe`, follow the wizard. It auto-registers the server (and the `/PowerAppsControl`
+     skill) with **Microsoft Scout** and the **GitHub Copilot CLI**, and offers to install
+     **FFmpeg** (needed for the video recording).
+   - **Portable:** grab `PowerAppsControl-<ver>-portable-win-x64.zip`, unzip, then run
+     `PowerAppsControl.exe --register` once.
+   - Unsigned build → Windows SmartScreen may warn: **More info → Run anyway**.
+2. **Restart your host** (Scout / Copilot CLI) so it loads the new server + skill.
+3. **Just ask.** In the chat, say:
+   > **Test my Power App https://apps.powerapps.com/play/…**
+
+   The agent will open and verify the app, ask **how** you want to test it
+   (smoke test / propose a plan / your own plan) with clickable buttons, then run it in a
+   recorded session and hand you an HTML report.
+
+That's it — you don't need to learn the tools; the companion skill drives the workflow.
+
+---
+
+## ⚠️ Please read — safety & liability
+
+**This tool controls your REAL mouse, keyboard, and screen, and drives your REAL,
+signed-in Power App. There is no sandbox.** By using it you accept the following:
+
+- **It acts on live data.** Runs happen against whatever tenant/app/records you point it at.
+  It defaults to **read-only** navigation, but any test that clicks *Save*, *Submit*,
+  *Delete*, *Send*, or a command-bar action **can create, modify, delete, or send real
+  data**. Only approve such steps when you are certain, and prefer a **non-production /
+  developer environment** for anything destructive.
+- **It takes over input.** While a session is active the tool moves your cursor and types.
+  Don't use the machine for other work during a run. You can **stop instantly** by clicking
+  the **✕** on the crimson "Under Agent Control" frame around the app window.
+- **It records your screen.** Session videos and screenshots are written to
+  `%USERPROFILE%\PowerAppsControl\Sessions\…`. They may capture **sensitive on-screen data**
+  (records, names, tokens visible in the app). Review before sharing; nothing is uploaded
+  anywhere by this tool.
+- **It downloads from the internet.** The updater and FFmpeg installer fetch from GitHub /
+  winget / a static FFmpeg build. Only run `--update` if you trust the source repo.
+- **No warranty.** This software is provided **"AS IS", without warranty of any kind**, and
+  is licensed under the GPL-3.0 (see [Sections 15–16 of the LICENSE](LICENSE) — Disclaimer of
+  Warranty and Limitation of Liability). **You are solely responsible** for what you test,
+  in which environment, and for any consequences. The authors accept no liability for data
+  loss, unintended changes, downtime, or any other damages.
+- **Use only where you're authorised.** Test apps and tenants you own or have explicit
+  permission to test. Respect your organisation's policies and any applicable regulations.
+
+If you don't accept these terms, don't run it.
+
 ---
 
 ## Two ways to test
