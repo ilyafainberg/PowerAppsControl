@@ -16,7 +16,7 @@ It is a specialization of the [TotalControl](../TotalControl) desktop-control
 engine: the whole low-level interaction layer is reused, with a UX-testing layer
 (sessions, scripts, smoke tests, recording, reporting) built on top.
 
-Built for **Microsoft Scout** and any MCP-compatible host. Windows only
+Built for **Microsoft Scout**, **GitHub Copilot CLI** and any MCP-compatible host. Windows only
 (.NET 10, PerMonitor-V2 DPI-aware).
 
 ## Demo
