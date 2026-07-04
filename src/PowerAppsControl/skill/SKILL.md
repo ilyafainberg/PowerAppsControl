@@ -1,6 +1,6 @@
 ---
 name: "PowerAppsControl"
-description: "Drive the PowerAppsControl MCP server to UX-test a Power App end to end: open and verify an app URL, let the user choose a mode (smoke test / explore & propose a plan / bring your own plan), then run it in a recorded session and produce a video + HTML report. Handles canvas apps, model-driven apps, the maker portal, and Power Pages. Triggers: 'test power app', 'test my power app', 'UX test', 'smoke test my app', 'record a test of my app', 'PowerAppsControl', '/PowerAppsControl', 'run a test plan on my app', 'load test my power app'. Use whenever the user wants to exercise, validate, record, or load-test a Power App's UI."
+description: "Drive the PowerAppsControl MCP server to UX-test a Power App end to end: open and verify an app URL, let the user choose a mode (smoke test = in-depth read-only exploration that produces a repeatable natural-language test plan; or run my test plan), then run it in a recorded session and produce a video + HTML report with a plain-English test plan. Handles canvas apps, model-driven apps, the maker portal, and Power Pages. Triggers: 'test power app', 'test my power app', 'UX test', 'smoke test my app', 'record a test of my app', 'PowerAppsControl', '/PowerAppsControl', 'run a test plan on my app', 'load test my power app'. Use whenever the user wants to exercise, validate, record, or load-test a Power App's UI."
 ---
 
 # PowerAppsControl — Power Apps UX testing playbook
@@ -60,15 +60,15 @@ missing. Sessions still run without it, just with no video.
 
 ## Step 2 — Choose the mode (clickable buttons)
 
-Present the three modes as buttons with **`m_ask_user`** (see "Clickable choices" above) and
-wait for the user's pick. `open_power_app` also returns a mode prompt as text, but on Scout
-it will NOT have rendered buttons — so you render them. Offer:
+Present the **two** modes as buttons with **`m_ask_user`** (see "Clickable choices" above) and
+wait for the user's pick. `open_power_app` also returns a mode prompt as text, but on Scout it
+will NOT have rendered buttons — so you render them. Offer:
 
-1. **Smoke test** — you explore the app yourself and produce a report + a suggested
-   repeatable script.
-2. **Explore & propose a plan** — you recon the app, then present a step-by-step plan and
-   **wait for the user's approval** before running anything.
-3. **Provide your own plan** — the user gives you the steps (or a saved script name).
+1. **Smoke test** — you explore the app **in depth and read-only**, then produce a **repeatable,
+   plain-English test plan** (a natural-language script both a human and an agent can read and
+   re-run). This is the default recommendation.
+2. **Run my test plan** — the user tells you what to test in plain language (or names a saved
+   plan) and you run it.
 
 Do **not** assume a mode. Wait for the choice.
 
@@ -87,25 +87,24 @@ start one. Always end the session even if a run fails — that's what writes the
    the window title from Step 1 for `windowQuery` (e.g. `"PowerCAT BVA"`, `"Warehouses Active"`).
 2. Then, by mode:
 
-   **A) Smoke test** — recon with `screenshot_window`, then walk the primary flows with
-   repeated **`smoke_step(action, description, ...)`** (each call performs ONE action and
-   records it). Cover: open menus/nav, fill an input, submit/navigate, go back. Screenshot to
-   VERIFY after meaningful actions. When done, call **`get_suggested_script`** — it returns a
-   plain-English **observation log**, NOT a finished script. **YOU then author the test
-   script** (see "Writing the test script" below), present it to the user, and optionally save
-   a runnable form with `save_test_script`.
+   **A) Smoke test — in-depth, non-destructive exploration → a natural-language plan.**
+   Recon with `screenshot_window`, then explore the primary flows with repeated
+   **`smoke_step(action, description, ...)`**: open menus & navigation, inspect forms and
+   fields, sort/filter grids, open records, move between screens. Stay **strictly read-only** —
+   do **not** save, submit, delete, or send anything. Screenshot to VERIFY after meaningful
+   actions. When done, call **`get_exploration_log`** (a plain-English log of what you did),
+   then **author a natural-language test plan** from it (see "Writing the test plan" below) and
+   save it with **`save_test_plan(name, plan)`** — that puts the plan in the report and the
+   library. Present the plan to the user.
 
-   **B) Explore & propose** — recon with `screenshot_window` + `find_element`, then present
-   a concrete step table and get approval via **`m_ask_user`** ("Approve / Change / Cancel").
-   After approval, run it with **`run_test_script(scriptJson=..., runs=1)`**.
-
-   **C) Own plan** — build the script from the user's steps and call
-   **`run_test_script(scriptJson=...)`** (or `scriptName=...` for a saved one). Offer
-   `runs=N` (repeat) and `parallelWindows=M` (load) if they want.
+   **B) Run my test plan.** Ask the user what to test (plain language) or load a saved plan
+   with **`load_test_plan(name)`**. Compile their plan into `run_test_script` steps yourself and
+   run it with **`run_test_script(scriptJson=...)`**. Offer `runs=N` (repeat) and
+   `parallelWindows=M` (load) if they want.
 
 3. **`end_test_session()`** — stops the video, releases the window, writes
-   `report.html` + `report.json` + screenshots into the session folder. Give the user the
-   report path and offer to open it.
+   `report.html` + `report.json` + screenshots into the session folder. The report shows the
+   **natural-language plan** (not JSON). Give the user the report path and offer to open it.
 
 ---
 
@@ -118,20 +117,20 @@ Prefer `waitForElement` steps in scripts to synchronize on load.
 
 ---
 
-## Writing the test script (natural language first)
+## Writing the test plan (natural language — this is the deliverable)
 
-**Script generation is YOUR job, not the server's.** `get_suggested_script` only returns
-what was observed; you turn it into the test. Write the script the user keeps as a
-**detailed, natural-language, numbered list of steps** — never a list of pixel coordinates.
-A coordinate script breaks the instant the layout, resolution, theme, or data changes; a
-natural-language script stays valid because an agent re-resolves each step to a concrete
-control at run time.
+**The test plan is a plain-English document, and the user never writes JSON.** For a smoke
+test, `get_exploration_log` returns what you observed; you turn that into a **detailed,
+natural-language, numbered list of steps**. Never a list of pixel coordinates — a coordinate
+plan breaks the instant the layout, resolution, theme, or data changes; a natural-language
+plan stays valid because an agent re-resolves each step to a concrete control when it runs.
 
 For each step, describe **the intent, the target control by its visible name/label, and the
 expected outcome**:
 
 ```
-Test: Submit a referral (Contoso Referrals)
+# Contoso Referrals — submit a referral
+
 1. Wait for the app to finish loading — the "New referral" button should be visible.
 2. Click the "New referral" button — the referral form opens.
 3. In the "Patient name" field, enter "Jane Doe", then Tab to the next field.
@@ -139,25 +138,25 @@ Test: Submit a referral (Contoso Referrals)
 5. Verify a "Thank you" confirmation message appears.
 ```
 
-Rules for good steps: one action each; name the control the way the user sees it; state
-what should happen; add explicit "wait for … to appear" steps around anything that loads;
-call out any read-only vs. data-changing step. This natural-language script is the
-deliverable. When you (or a future agent) need to *replay* it, translate each line to the
-JSON actions below at run time — **prefer `clickElement`/`waitForElement`/`assertElement`
-by name**, and only fall back to a coordinate `click` for canvas controls UI Automation
-can't see.
+Rules for good steps: one action each; name the control the way the user sees it; state what
+should happen; add explicit "wait for … to appear" steps around anything that loads; note any
+read-only vs. data-changing step. **Save the plan with `save_test_plan(name, plan)`** — it goes
+into the HTML report (rendered as readable text, not JSON) and the library so it can be re-run.
 
----
+### Running a plan (how JSON fits in — internal only)
 
-## Test script format (JSON) — the run-time execution form
+When you *execute* a plan, you translate each plain-language line into `run_test_script`'s JSON
+steps **at run time**. This JSON is an internal execution detail — **never show it to the user,
+never save it as the artifact.** Prefer `clickElement` / `waitForElement` / `assertElement` by
+name; fall back to a coordinate `click` only for canvas controls UI Automation can't see. The
+saved, reportable, human-readable artifact is always the natural-language plan.
 
-When you actually execute a script with `run_test_script`, pass it as JSON. This is the
-machine form the natural-language script compiles down to at run time:
+<details>
+<summary>Run-time JSON shape (for your reference when calling run_test_script)</summary>
 
 ```json
 {
   "name": "Submit a referral",
-  "appName": "Contoso Referrals",
   "steps": [
     { "action": "waitForElement", "description": "app loaded",  "name": "New referral", "timeoutMs": 8000 },
     { "action": "clickElement",   "description": "open form",   "name": "New referral" },
@@ -167,6 +166,8 @@ machine form the natural-language script compiles down to at run time:
   ]
 }
 ```
+
+</details>
 
 Step actions and their fields:
 
@@ -222,10 +223,10 @@ Workflow (this server):
   if the host supports MCP elicitation (Scout does not).** Prefer the host's `m_ask_user`.
 - `ensure_ffmpeg(checkOnly?)` — install FFmpeg for recording if missing.
 - `start_test_session(appName, windowQuery?, maxWindows?, fps?, recordVideo?)` — Step 3 start.
-- `smoke_step(action, description?, ...)` — one exploratory action + record to draft.
-- `get_suggested_script(name?)` — draft script from smoke steps.
-- `run_test_script(scriptJson? | scriptName?, runs?, parallelWindows?)` — run a plan.
-- `save_test_script / load_test_script / list_test_scripts` — script library.
+- `smoke_step(action, description?, ...)` — one read-only exploratory action + record to the log.
+- `get_exploration_log(name?)` — plain-English log of the smoke exploration (author your plan from it).
+- `run_test_script(scriptJson, runs?, parallelWindows?)` — run a plan (you compile the NL plan to JSON steps).
+- `save_test_plan(name, plan)` / `load_test_plan(name)` / `list_test_plans()` — natural-language plan library.
 - `test_session_status()` — inspect the active session.
 - `end_test_session()` — stop, write report, release window. **Always call this.**
 

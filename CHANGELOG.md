@@ -4,6 +4,36 @@ All notable changes to **PowerAppsControl** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] — 2026-07-04
+
+### Changed
+- **Two test modes, not three.** The standalone *Explore* mode is gone. There are now
+  exactly two ways to test: **Smoke Test** (agent-driven) and **Run my plan** (you supply
+  the steps). Smoke Test is defined as a **non-destructive, in-depth exploration** of the
+  app — read-only, never saving/submitting/deleting/sending — that produces a repeatable
+  test plan.
+- **Smoke Test output is a human-readable, natural-language test plan** (Markdown), not a
+  coordinate JSON blob. The plan describes *what* to test and the *expected outcome* in
+  plain English, so both a person and an agent can re-run it and it survives layout,
+  resolution, theme, and data changes. The HTML report now renders this plan (headings,
+  lists, bold) instead of raw JSON.
+- **Docs no longer imply you must write JSON to test.** README and the companion skill lead
+  with natural-language plans; the internal step JSON used by `run_test_script` at run time
+  is documented only as an implementation detail.
+
+### Renamed (MCP tools)
+- `get_suggested_script` → **`get_exploration_log`** (returns the plain-English observation
+  log gathered during a Smoke Test).
+- `save_test_script` / `load_test_script` / `list_test_script` →
+  **`save_test_plan`** / **`load_test_plan`** / **`list_test_plan`** (natural-language `.md`
+  plans, stored under `Plans\`). `save_test_plan` also attaches the plan to the active
+  session's report.
+
+### Repository
+- **Solution-based layout.** Added `PowerAppsControl.sln` at the root and moved the project
+  into `src/PowerAppsControl/`; docs, installer, and CI were updated to match. History was
+  preserved via renames.
+
 ## [1.4.0] — 2026-07-04
 
 ### Changed
@@ -117,6 +147,7 @@ Initial public release.
   (`find_window`, `control_window`, `screenshot_window`, `click_in_window`, `send_keys`,
   `find_element`, `record_window`, and more).
 
+[1.5.0]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.5.0
 [1.4.0]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.4.0
 [1.3.2]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.3.2
 [1.3.1]: https://github.com/ilyafainberg/PowerAppsControl/releases/tag/v1.3.1

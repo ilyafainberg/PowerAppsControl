@@ -146,7 +146,8 @@ internal sealed class TestSessionReport
     public int Runs { get; set; }
     public int ParallelWindows { get; set; }
     public List<string> WindowTitles { get; set; } = new();
-    public TestScript? Script { get; set; }
+    /// <summary>The human-readable, natural-language test plan (Markdown) — the smoke-test deliverable.</summary>
+    public string? SuggestedPlan { get; set; }
     public List<RunResult> Results { get; set; } = new();
     public string? Notes { get; set; }
 }

@@ -169,10 +169,9 @@ public static class TestingTools
             else
             {
                 // Client didn't render buttons (or user dismissed) → ask in text.
-                sb.AppendLine("STEP 2 — ask the user which mode to run:");
-                sb.AppendLine("  1) Smoke test — I explore the app on my own and produce a report + suggested script.");
-                sb.AppendLine("  2) Explore & propose a test plan — I recon the app, then propose a plan for your approval before running it.");
-                sb.AppendLine("  3) Provide your own test plan — you give me the steps and I run them.");
+                sb.AppendLine("STEP 2 — ask the user which mode to run (present these as buttons via m_ask_user):");
+                sb.AppendLine("  1) Smoke test — I explore the app in depth (read-only) and give you a repeatable, plain-English test plan.");
+                sb.AppendLine("  2) Run my test plan — you tell me what to test (in plain language, or a saved plan) and I run it.");
                 sb.AppendLine();
                 sb.AppendLine($"When ready, start with: start_test_session(appName='<label>', windowQuery='{windowQuery}').");
             }
@@ -192,22 +191,20 @@ public static class TestingTools
     /// <summary>The three test modes, offered as clickable buttons after a successful verification.</summary>
     private static readonly IReadOnlyList<Choice> TestModeChoices = new[]
     {
-        new Choice("smoke",   "Smoke test (I explore & report)"),
-        new Choice("explore", "Explore & propose a plan for approval"),
-        new Choice("own",     "I'll provide my own test plan"),
+        new Choice("smoke", "Smoke test — explore the app in depth (read-only) and give me a repeatable test plan"),
+        new Choice("own",   "Run my test plan — I'll tell you what to test"),
     };
 
     private static string ModeGuidance(string mode, string windowQuery) => mode switch
     {
         "smoke" =>
-            $"Proceed: start_test_session(appName='<label>', windowQuery='{windowQuery}'), then walk the app with " +
-            "smoke_step across its primary flows, then get_suggested_script and end_test_session.",
-        "explore" =>
-            $"Proceed: start_test_session(appName='<label>', windowQuery='{windowQuery}'), recon with screenshot_window " +
-            "+ find_element, PRESENT a proposed plan and WAIT for the user's approval, then run_test_script and end_test_session.",
+            $"Proceed: start_test_session(appName='<label>', windowQuery='{windowQuery}'), then explore the app IN DEPTH " +
+            "and READ-ONLY with smoke_step across its primary flows (open menus/nav, inspect forms, sort/filter grids, " +
+            "open records, navigate — but do NOT save, submit, delete, or send). When done, call get_exploration_log, " +
+            "AUTHOR a natural-language test plan from it, save it with save_test_plan, then end_test_session.",
         "own" =>
-            "Proceed: ask the user for their test steps (or a saved script name), then start_test_session and " +
-            "run_test_script with their plan, then end_test_session.",
+            "Proceed: ask the user (in plain language) what they want to test, or a saved plan name (load_test_plan). " +
+            "Then start_test_session, execute their plan with run_test_script, and end_test_session.",
         _ => $"Proceed with start_test_session(appName='<label>', windowQuery='{windowQuery}').",
     };
 
@@ -493,7 +490,7 @@ public static class TestingTools
         var sb = new StringBuilder();
         sb.AppendLine($"Active session '{s.AppName}' (id {s.Id}) — mode: {s.Mode}.");
         sb.AppendLine($"  Started: {s.StartedAt:HH:mm:ss}  ·  windows: {s.Windows.Count}  ·  recording: {(s.Recorder is not null ? "on" : "off")}");
-        sb.AppendLine($"  Runs recorded: {s.Results.Count}  ·  draft script steps: {s.DraftSteps.Count}");
+        sb.AppendLine($"  Runs recorded: {s.Results.Count}  ·  exploration steps: {s.DraftSteps.Count}");
         sb.AppendLine($"  Folder: {s.SessionDir}");
         return sb.ToString();
     }
@@ -515,29 +512,30 @@ public static class TestingTools
 
     [McpServerTool(Name = "run_test_script")]
     [Description(
-        "Runs a test script against the app for the active session. Provide the script inline as JSON " +
-        "(scriptJson) OR by the name of a previously saved script (scriptName).\n" +
-        "SCRIPT JSON shape: { \"name\": \"...\", \"steps\": [ { \"action\": \"...\", \"description\": \"...\", ... } ] }.\n" +
-        "Supported step actions and their fields:\n" +
-        "  • click          {x, y, button?, clicks?}                 — click at window-relative pixels.\n" +
+        "Executes a test plan against the app for the active session. This is the RUN-TIME EXECUTION form: you " +
+        "compile a natural-language test plan (the user's, or one from a saved plan) into the JSON steps below and " +
+        "pass them as scriptJson. The user never has to write JSON — that's your job; they describe what to test in " +
+        "plain language and you translate it here.\n" +
+        "scriptJson shape: { \"name\": \"...\", \"steps\": [ { \"action\": \"...\", \"description\": \"...\", ... } ] }.\n" +
+        "Step actions (prefer name-based ones — they survive layout changes; use pixel 'click' only for canvas " +
+        "controls UI Automation can't see):\n" +
         "  • clickElement   {name?, automationId?, controlType?}     — find + invoke a control via UI Automation.\n" +
         "  • type           {keys}                                   — type text/chords, e.g. \"jane{Tab}{Enter}\".\n" +
-        "  • scroll         {amount, horizontal?, x?, y?}            — wheel scroll (negative amount = down).\n" +
-        "  • wait           {ms}                                     — fixed pause.\n" +
         "  • waitForElement {name?/automationId?/controlType?, timeoutMs?} — poll until a control appears.\n" +
         "  • assertElement  {name?/automationId?/controlType?, shouldExist?}  — pass/fail presence check.\n" +
+        "  • scroll         {amount, horizontal?, x?, y?}            — wheel scroll (negative amount = down).\n" +
+        "  • wait           {ms}                                     — fixed pause.\n" +
+        "  • click          {x, y, button?, clicks?}                 — click at window-relative pixels (last resort).\n" +
         "  • screenshot     {description?}                           — capture the app into the report.\n" +
-        "REPEAT: runs=N replays the whole script N times. LOAD: parallelWindows=M drives M of the session's " +
-        "windows together (interleaved per step, since Windows serializes real input) to simulate concurrent " +
-        "users — you must have opened M app windows and passed maxWindows>=M to start_test_session.\n" +
+        "REPEAT: runs=N replays the whole plan N times. LOAD: parallelWindows=M drives M of the session's windows " +
+        "together (interleaved per step, since Windows serializes real input) to simulate concurrent users — you " +
+        "must have opened M app windows and passed maxWindows>=M to start_test_session.\n" +
         "Each step is timed and marked pass/fail; failures capture a screenshot. The full report is written on " +
         "end_test_session. Returns a run summary (pass counts, timings, first failure).")]
     public static string RunTestScript(
-        [Description("The test script as JSON. Provide this OR scriptName.")]
-        string? scriptJson = null,
-        [Description("Name of a saved script to load and run (see save_test_script / list_test_scripts). Provide this OR scriptJson.")]
-        string? scriptName = null,
-        [Description("How many times to replay the whole script. Default 1. Range 1..100.")]
+        [Description("The test plan compiled to JSON steps (see shape above). You author this from the user's plain-language plan.")]
+        string scriptJson,
+        [Description("How many times to replay the whole plan. Default 1. Range 1..100.")]
         int runs = 1,
         [Description("How many of the session's windows to drive at once for load testing. Default 1. Range 1..8 (capped to the number of windows under control).")]
         int parallelWindows = 1)
@@ -545,21 +543,10 @@ public static class TestingTools
         var gate = TestSessionManager.RequireSession("run_test_script");
         if (gate is not null) return gate;
 
-        TestScript script;
-        if (!string.IsNullOrWhiteSpace(scriptJson))
-        {
-            script = TestJson.ParseScript(scriptJson);
-        }
-        else if (!string.IsNullOrWhiteSpace(scriptName))
-        {
-            var path = ScriptPath(scriptName);
-            if (!File.Exists(path)) return $"No saved script named '{scriptName}'. Use list_test_scripts to see available scripts.";
-            script = TestJson.ParseScript(File.ReadAllText(path));
-        }
-        else
-        {
-            return "Provide either scriptJson (inline) or scriptName (a saved script).";
-        }
+        if (string.IsNullOrWhiteSpace(scriptJson))
+            return "Provide scriptJson — the user's plain-language plan compiled into JSON steps.";
+
+        TestScript script = TestJson.ParseScript(scriptJson);
 
         try
         {
@@ -572,17 +559,19 @@ public static class TestingTools
     }
 
     // =========================================================================
-    //  Smoke test (agent-led exploration → suggested script)
+    //  Smoke test (in-depth read-only exploration → natural-language plan)
     // =========================================================================
 
     [McpServerTool(Name = "smoke_step")]
     [Description(
-        "Performs ONE exploratory action on the app AND records it as a step in a draft 'smoke test' script. " +
-        "Use this while exploring an app on your own so that, when you are done, get_suggested_script returns a " +
-        "clean, repeatable script of exactly what you did.\n" +
+        "Performs ONE exploratory action on the app AND records it in the session's exploration log. Use this " +
+        "during a SMOKE TEST — an IN-DEPTH, READ-ONLY exploration of the app: open menus and navigation, inspect " +
+        "forms and fields, sort/filter grids, open records, move between screens. Do NOT save, submit, delete, or " +
+        "send anything — smoke testing is non-destructive. When done, get_exploration_log gives you the log to " +
+        "author a natural-language test plan from.\n" +
         "Switches the session into 'smoke' mode. The 'action' + its fields mirror run_test_script step actions:\n" +
-        "  action='click'          with x,y (window-relative pixels; get them from screenshot_window).\n" +
         "  action='clickElement'   with name / automationId / controlType (preferred — no pixel guessing).\n" +
+        "  action='click'          with x,y (window-relative pixels; last resort for canvas controls).\n" +
         "  action='type'           with keys.\n" +
         "  action='scroll'         with amount (negative = down), optional x,y.\n" +
         "  action='wait'           with ms.\n" +
@@ -590,8 +579,8 @@ public static class TestingTools
         "  action='assertElement'  with name/automationId and optional shouldExist.\n" +
         "  action='screenshot'     to snapshot the app into the report.\n" +
         "Recommended smoke loop: screenshot_window to SEE the app → smoke_step to act → screenshot_window to " +
-        "VERIFY → repeat across the primary flows (open menus, fill inputs, submit, navigate). Returns the " +
-        "step result (pass/fail + detail). Add a description to each step so the suggested script is readable.")]
+        "VERIFY → repeat across the primary flows. Returns the step result (pass/fail + detail). Add a clear " +
+        "description to each step so the exploration log — and the plan you author from it — reads well.")]
     public static string SmokeStep(
         [Description("The action to perform: click | clickElement | type | scroll | wait | waitForElement | assertElement | screenshot.")]
         string action,
@@ -658,23 +647,23 @@ public static class TestingTools
 
         var status = sr.Passed ? "✓" : "✗";
         return $"{status} smoke step {session.DraftSteps.Count} [{sr.Action}] {sr.Label} — {sr.Message} ({sr.DurationMs}ms). " +
-               (sr.Passed ? "Recorded to draft script." : "Recorded (FAILED) to draft — fix or remove before saving.");
+               (sr.Passed ? "Recorded to the exploration log." : "Recorded (FAILED) to the exploration log — note it when authoring the plan.");
     }
 
-    [McpServerTool(Name = "get_suggested_script")]
+    [McpServerTool(Name = "get_exploration_log")]
     [Description("Returns a plain-English OBSERVATION LOG of the smoke_step actions taken this session (what was " +
-                 "done, which control/element was targeted, and the result of each step) — NOT a finished script.\n" +
-                 "IMPORTANT: script generation is the SKILL's job, not the server's. Do not hand this raw log to the " +
-                 "user as the test. Instead, use it (plus your understanding of the app) to AUTHOR a detailed, " +
-                 "natural-language test script: numbered steps in plain language that reference controls by their " +
-                 "visible name/label and state the expected outcome of each step. AVOID pixel coordinates — a " +
-                 "coordinate-based script breaks the moment the layout changes. A natural-language script stays valid " +
-                 "and can be re-executed by an agent (which resolves each step to clickElement/type/etc. at run time).")]
-    public static string GetSuggestedScript(
+                 "done, which control/element was targeted, and the result of each step) — raw material, NOT the " +
+                 "finished plan.\n" +
+                 "Use it (plus your understanding of the app) to AUTHOR a detailed, natural-language TEST PLAN: " +
+                 "numbered steps in plain language that reference controls by their visible name/label and state the " +
+                 "expected outcome of each step. AVOID pixel coordinates — a coordinate plan breaks the moment the " +
+                 "layout changes; a natural-language plan stays valid and both a human and an agent can read and " +
+                 "re-run it. Then save it with save_test_plan so it appears in the report and can be reused.")]
+    public static string GetExplorationLog(
         [Description("Optional name for the test. Default '<app> smoke test'.")]
         string? name = null)
     {
-        var gate = TestSessionManager.RequireSession("get_suggested_script");
+        var gate = TestSessionManager.RequireSession("get_exploration_log");
         if (gate is not null) return gate;
 
         var s = TestSessionManager.Current;
@@ -683,20 +672,23 @@ public static class TestingTools
 
         var title = string.IsNullOrWhiteSpace(name) ? $"{s.AppName} smoke test" : name!;
         var sb = new StringBuilder();
-        sb.AppendLine($"Observation log for '{title}' — {s.DraftSteps.Count} action(s) recorded against '{s.AppName}':");
+        sb.AppendLine($"Exploration log for '{title}' — {s.DraftSteps.Count} action(s) against '{s.AppName}':");
         sb.AppendLine();
         for (int i = 0; i < s.DraftSteps.Count; i++)
             sb.AppendLine($"  {i + 1}. {DescribeObservation(s.DraftSteps[i])}");
         sb.AppendLine();
-        sb.AppendLine("NEXT — YOU (the skill) author the test script from these observations:");
-        sb.AppendLine("  • Write it as a DETAILED, NATURAL-LANGUAGE numbered list of steps (not JSON, not coordinates).");
-        sb.AppendLine("  • Reference each control by its visible NAME/LABEL, and state the EXPECTED OUTCOME of each step");
-        sb.AppendLine("    (e.g. \"Click the 'Submit' button — the confirmation 'Thank you' should appear\").");
-        sb.AppendLine("  • Start with a step that waits for the app to finish loading.");
-        sb.AppendLine("  • Present that script to the user. To replay it later, an agent converts each step to the");
-        sb.AppendLine("    appropriate action (clickElement by name, type, waitForElement, assertElement) at run time.");
+        sb.AppendLine("NEXT — author a natural-language TEST PLAN from this:");
+        sb.AppendLine("  • A numbered list, plain language, no JSON and no pixel coordinates.");
+        sb.AppendLine("  • Reference each control by its visible NAME/LABEL and state the EXPECTED OUTCOME");
+        sb.AppendLine("    (e.g. \"Click the 'Submit' button — a 'Thank you' confirmation should appear\").");
+        sb.AppendLine("  • Begin with a step that waits for the app to finish loading.");
+        sb.AppendLine("  • Then call save_test_plan(name, plan) with your plan text — it goes into the report and");
+        sb.AppendLine("    the library so it can be re-run later (run_test_script compiles it to steps at run time).");
         return sb.ToString();
     }
+
+    /// <summary>Public wrapper so the session manager can build a readable fallback plan.</summary>
+    internal static string DescribeObservationPublic(TestStep step) => DescribeObservation(step);
 
     /// <summary>Render one recorded smoke step as a plain-English observation (name/label based, not coordinates).</summary>
     private static string DescribeObservation(TestStep step) => step.Action switch
@@ -716,74 +708,58 @@ public static class TestingTools
         string.IsNullOrWhiteSpace(step.Description) ? "" : $" — {step.Description}";
 
     // =========================================================================
-    //  Script library
+    //  Test-plan library (natural language, human + agent readable)
     // =========================================================================
 
-    [McpServerTool(Name = "save_test_script")]
-    [Description("Saves a test script to the script library (%USERPROFILE%\\PowerAppsControl\\Scripts) so it can be " +
-                 "replayed later by name. Provide the script inline (scriptJson) or set fromDraft=true to save the " +
-                 "current session's smoke-test draft. Returns the saved file path.")]
-    public static string SaveTestScript(
-        [Description("Name to save the script under (file name). e.g. 'referral-happy-path'.")]
+    [McpServerTool(Name = "save_test_plan")]
+    [Description("Saves a natural-language test plan to the library (%USERPROFILE%\\PowerAppsControl\\Plans) as a " +
+                 "Markdown file so it can be reused later, and — if a session is active — attaches it to the current " +
+                 "session so it appears in the HTML report. The plan is PLAIN LANGUAGE (a numbered list of steps that " +
+                 "name controls by their visible label and state the expected outcome), NOT JSON. This is the " +
+                 "smoke-test deliverable. Returns the saved file path.")]
+    public static string SaveTestPlan(
+        [Description("Name to save the plan under (file name). e.g. 'referral-happy-path'.")]
         string name,
-        [Description("The script JSON to save. Provide this OR set fromDraft=true.")]
-        string? scriptJson = null,
-        [Description("If true, save the active session's smoke-test draft instead of scriptJson. Default false.")]
-        bool fromDraft = false)
+        [Description("The natural-language test plan text (Markdown). A numbered list of plain-language steps with expected outcomes.")]
+        string plan)
     {
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("name is required.");
+        if (string.IsNullOrWhiteSpace(plan)) return "Provide the natural-language plan text.";
 
-        TestScript script;
-        if (fromDraft)
-        {
-            var gate = TestSessionManager.RequireSession("save_test_script");
-            if (gate is not null) return gate;
-            var s = TestSessionManager.Current;
-            if (s.DraftSteps.Count == 0) return "The smoke-test draft is empty — nothing to save.";
-            script = new TestScript { Name = name, AppName = s.AppName, Steps = s.DraftSteps.ToList() };
-        }
-        else if (!string.IsNullOrWhiteSpace(scriptJson))
-        {
-            script = TestJson.ParseScript(scriptJson);
-            script.Name = name;
-        }
-        else
-        {
-            return "Provide scriptJson, or set fromDraft=true to save the current smoke draft.";
-        }
+        var path = PlanPath(name);
+        File.WriteAllText(path, plan, new UTF8Encoding(false));
 
-        var path = ScriptPath(name);
-        File.WriteAllText(path, TestJson.Write(script), new UTF8Encoding(false));
-        return $"Saved script '{name}' ({script.Steps.Count} steps) → {path}";
+        // Attach to the active session so end_test_session shows it in the report.
+        if (TestSessionManager.IsActive)
+            TestSessionManager.Current.SuggestedPlan = plan;
+
+        return $"Saved test plan '{name}' → {path}" +
+               (TestSessionManager.IsActive ? " (also attached to the current session's report)." : ".");
     }
 
-    [McpServerTool(Name = "load_test_script")]
-    [Description("Loads a saved test script by name and returns its JSON. Use list_test_scripts to see what's available.")]
-    public static string LoadTestScript(
-        [Description("The saved script name.")] string name)
+    [McpServerTool(Name = "load_test_plan")]
+    [Description("Loads a saved natural-language test plan by name and returns its text. Use list_test_plans to see " +
+                 "what's available. To run it, read the steps and execute them with run_test_script.")]
+    public static string LoadTestPlan(
+        [Description("The saved plan name.")] string name)
     {
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("name is required.");
-        var path = ScriptPath(name);
-        if (!File.Exists(path)) return $"No saved script named '{name}'. Use list_test_scripts to see available scripts.";
+        var path = PlanPath(name);
+        if (!File.Exists(path)) return $"No saved plan named '{name}'. Use list_test_plans to see available plans.";
         return File.ReadAllText(path);
     }
 
-    [McpServerTool(Name = "list_test_scripts")]
-    [Description("Lists the saved test scripts in the library (%USERPROFILE%\\PowerAppsControl\\Scripts) with their " +
-                 "step counts.")]
-    public static string ListTestScripts()
+    [McpServerTool(Name = "list_test_plans")]
+    [Description("Lists the saved natural-language test plans in the library (%USERPROFILE%\\PowerAppsControl\\Plans).")]
+    public static string ListTestPlans()
     {
-        var dir = TestSessionManager.ScriptsDir;
-        var files = Directory.GetFiles(dir, "*.json");
-        if (files.Length == 0) return $"No saved scripts in {dir}.";
+        var dir = TestSessionManager.PlansDir;
+        var files = Directory.GetFiles(dir, "*.md");
+        if (files.Length == 0) return $"No saved test plans in {dir}.";
         var sb = new StringBuilder();
-        sb.AppendLine($"Saved test scripts in {dir}:");
+        sb.AppendLine($"Saved test plans in {dir}:");
         foreach (var f in files.OrderBy(f => f))
-        {
-            int steps = -1;
-            try { steps = TestJson.ParseScript(File.ReadAllText(f)).Steps.Count; } catch { /* malformed */ }
-            sb.AppendLine($"  • {Path.GetFileNameWithoutExtension(f)}{(steps >= 0 ? $" ({steps} steps)" : " (unreadable)")}");
-        }
+            sb.AppendLine($"  • {Path.GetFileNameWithoutExtension(f)}");
         return sb.ToString();
     }
 
@@ -791,12 +767,12 @@ public static class TestingTools
     //  Helpers
     // =========================================================================
 
-    private static string ScriptPath(string name)
+    private static string PlanPath(string name)
     {
         var safe = string.Concat(name.Split(Path.GetInvalidFileNameChars())).Trim();
-        if (safe.Length == 0) safe = "script";
-        if (!safe.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) safe += ".json";
-        return Path.Combine(TestSessionManager.ScriptsDir, safe);
+        if (safe.Length == 0) safe = "plan";
+        if (!safe.EndsWith(".md", StringComparison.OrdinalIgnoreCase)) safe += ".md";
+        return Path.Combine(TestSessionManager.PlansDir, safe);
     }
 
     private static bool TryParseAction(string action, out StepAction parsed)

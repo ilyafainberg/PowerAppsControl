@@ -79,12 +79,12 @@ internal static class ReportGenerator
             sb.Append("</ul></section>");
         }
 
-        // Suggested script (smoke)
-        if (r.Script is not null && r.Script.Steps.Count > 0)
+        // Natural-language test plan (smoke deliverable) — human-readable, not JSON.
+        if (!string.IsNullOrWhiteSpace(r.SuggestedPlan))
         {
-            sb.Append("<section class=\"card\"><h2>Suggested repeatable script</h2>");
-            sb.Append("<div class=\"sub\">Generated from the smoke-test exploration. Save it and replay it as a regression test.</div>");
-            sb.Append($"<pre class=\"code\">{Enc(TestJson.Write(r.Script))}</pre></section>");
+            sb.Append("<section class=\"card\"><h2>Repeatable test plan</h2>");
+            sb.Append("<div class=\"sub\">A plain-language plan you (or an agent) can re-run. Save it with save_test_plan to keep it.</div>");
+            sb.Append($"<div class=\"plan\">{RenderPlan(r.SuggestedPlan!)}</div></section>");
         }
 
         // Runs
@@ -157,6 +157,52 @@ internal static class ReportGenerator
 
     private static string Enc(string? s) => WebUtility.HtmlEncode(s ?? "");
 
+    /// <summary>
+    /// Render a natural-language plan (light Markdown: # headings, 1. / - lists, blank-line
+    /// paragraphs, **bold**, `code`) into clean HTML. Deliberately minimal — the plan is prose,
+    /// not a document, so we only handle what a test plan actually uses.
+    /// </summary>
+    private static string RenderPlan(string md)
+    {
+        var lines = md.Replace("\r\n", "\n").Split('\n');
+        var sb = new StringBuilder();
+        string listKind = ""; // "ol" | "ul" | ""
+        void CloseList() { if (listKind != "") { sb.Append($"</{listKind}>"); listKind = ""; } }
+
+        foreach (var raw in lines)
+        {
+            var line = raw.TrimEnd();
+            var t = line.TrimStart();
+            if (t.Length == 0) { CloseList(); continue; }
+
+            // Headings (#, ##, ###)
+            var h = System.Text.RegularExpressions.Regex.Match(t, @"^(#{1,4})\s+(.*)$");
+            if (h.Success) { CloseList(); int lvl = Math.Min(4, h.Groups[1].Value.Length); sb.Append($"<h{lvl + 2}>{Inline(h.Groups[2].Value)}</h{lvl + 2}>"); continue; }
+
+            // Ordered list item: "1. text"
+            var ol = System.Text.RegularExpressions.Regex.Match(t, @"^\d+[.)]\s+(.*)$");
+            if (ol.Success) { if (listKind != "ol") { CloseList(); sb.Append("<ol>"); listKind = "ol"; } sb.Append($"<li>{Inline(ol.Groups[1].Value)}</li>"); continue; }
+
+            // Unordered list item: "- text" / "* text" / "• text"
+            var ul = System.Text.RegularExpressions.Regex.Match(t, @"^[-*•]\s+(.*)$");
+            if (ul.Success) { if (listKind != "ul") { CloseList(); sb.Append("<ul>"); listKind = "ul"; } sb.Append($"<li>{Inline(ul.Groups[1].Value)}</li>"); continue; }
+
+            CloseList();
+            sb.Append($"<p>{Inline(t)}</p>");
+        }
+        CloseList();
+        return sb.ToString();
+    }
+
+    /// <summary>Encode text and apply inline **bold** and `code`.</summary>
+    private static string Inline(string s)
+    {
+        var e = Enc(s);
+        e = System.Text.RegularExpressions.Regex.Replace(e, @"\*\*(.+?)\*\*", "<strong>$1</strong>");
+        e = System.Text.RegularExpressions.Regex.Replace(e, @"`(.+?)`", "<code>$1</code>");
+        return e;
+    }
+
     private static string Css() => """
         :root{color-scheme:light;
         --bg:#ffffff;--card:#ffffff;--surface-soft:#f6f6f6;--ink:#000000;--sub:#404040;--soft:#6b6b6b;
@@ -198,6 +244,13 @@ internal static class ReportGenerator
         .wins li{background:var(--surface-soft);border:1px solid var(--line);border-radius:3px;padding:6px 12px;font-size:13px}
         .wins .wi{color:var(--accent);font-weight:700;margin-right:8px}
         pre.code{background:var(--code-bg);color:var(--code-fg);padding:16px;border-radius:3px;border:1px solid var(--line);overflow:auto;font-size:12.5px;line-height:1.5;max-height:440px}
+        .plan{font-size:14px;line-height:1.6}
+        .plan h3,.plan h4,.plan h5{margin:14px 0 6px;font-weight:700;letter-spacing:-0.01em}
+        .plan ol,.plan ul{margin:8px 0 8px 4px;padding-left:22px}
+        .plan li{margin:5px 0}
+        .plan p{margin:8px 0}
+        .plan code{background:var(--surface-soft);border:1px solid var(--line);border-radius:3px;padding:1px 5px;font-size:12.5px}
+        .plan strong{color:var(--ink)}
         table.runs{width:100%;border-collapse:collapse;font-size:13px}
         table.runs th{text-align:left;color:var(--sub);font-weight:600;padding:9px 10px;border-bottom:2px solid var(--line-strong);text-transform:uppercase;font-size:11.5px;letter-spacing:.04em}
         .run-row{cursor:pointer;border-bottom:1px solid var(--line)}

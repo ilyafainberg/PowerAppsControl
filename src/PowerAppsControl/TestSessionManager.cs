@@ -38,8 +38,11 @@ internal sealed class TestSession
     /// <summary>Update the integrated status pill on the primary window's frame.</summary>
     public void SetStatus(string? status) => WindowControl.SetStatus(PrimaryHwnd, status, IsRecording);
 
-    /// <summary>Steps captured live during a smoke test → becomes the suggested script.</summary>
+    /// <summary>Steps captured live during a smoke test → the raw exploration log.</summary>
     public List<TestStep> DraftSteps { get; } = new();
+
+    /// <summary>The authored natural-language test plan (Markdown) — the smoke-test deliverable, shown in the report.</summary>
+    public string? SuggestedPlan { get; set; }
 
     /// <summary>All run results accumulated across run_test_script calls this session.</summary>
     public List<RunResult> Results { get; } = new();
@@ -77,9 +80,10 @@ internal static class TestSessionManager
         }
     }
 
-    public static string ScriptsDir
+    /// <summary>Library folder for saved natural-language test plans (.md): %USERPROFILE%\PowerAppsControl\Plans.</summary>
+    public static string PlansDir
     {
-        get { var d = Path.Combine(BaseDir, "Scripts"); Directory.CreateDirectory(d); return d; }
+        get { var d = Path.Combine(BaseDir, "Plans"); Directory.CreateDirectory(d); return d; }
     }
 
     /// <summary>Return a gate instruction string if no session is active, else null.</summary>
@@ -180,9 +184,10 @@ internal static class TestSessionManager
                 Runs = s.Results.Select(r => r.RunIndex).DefaultIfEmpty(0).Max(),
                 ParallelWindows = s.Windows.Count,
                 WindowTitles = s.Windows.Select(w => w.Title).ToList(),
-                Script = s.Mode == "smoke"
-                    ? new TestScript { Name = $"{s.AppName} smoke test", AppName = s.AppName, Steps = s.DraftSteps.ToList() }
-                    : null,
+                // The human-readable deliverable: the agent-authored NL plan if provided, else a
+                // readable summary of what the smoke exploration did (never raw JSON).
+                SuggestedPlan = s.SuggestedPlan
+                    ?? (s.Mode == "smoke" && s.DraftSteps.Count > 0 ? BuildFallbackPlan(s) : null),
                 Results = s.Results.ToList(),
             };
 
@@ -204,9 +209,28 @@ internal static class TestSessionManager
             sb.AppendLine($"  Video:  {(File.Exists(s.VideoFile) ? s.VideoFile : "none — " + recSummary)}");
             sb.AppendLine($"  Report: {s.ReportHtml}");
             sb.AppendLine($"  Data:   {s.ReportJson}");
-            if (s.Mode == "smoke" && s.DraftSteps.Count > 0)
-                sb.AppendLine($"  Suggested script: {s.DraftSteps.Count} step(s) — call get_suggested_script to retrieve, save_test_script to keep.");
+            if (s.Mode == "smoke")
+                sb.AppendLine(s.SuggestedPlan is not null
+                    ? "  A natural-language test plan is included in the report; save it with save_test_plan to reuse it."
+                    : $"  Explored {s.DraftSteps.Count} action(s) — author a natural-language plan from get_exploration_log, then save_test_plan.");
             return sb.ToString();
         }
+    }
+
+    /// <summary>
+    /// When the agent didn't hand us an authored plan, produce a readable numbered list from the
+    /// recorded exploration so the report is still human-readable (never raw JSON).
+    /// </summary>
+    private static string BuildFallbackPlan(TestSession s)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"# {s.AppName} — smoke test");
+        sb.AppendLine();
+        sb.AppendLine("_Auto-summarized from the exploration (no authored plan was supplied)._");
+        sb.AppendLine();
+        int n = 1;
+        foreach (var step in s.DraftSteps)
+            sb.AppendLine($"{n++}. {TestingTools.DescribeObservationPublic(step)}");
+        return sb.ToString();
     }
 }

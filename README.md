@@ -87,17 +87,24 @@ If you don't accept these terms, don't run it.
 
 ## Two ways to test
 
-Both produce a recorded session and an HTML report.
+You describe what you want in **plain language** — you never write JSON or scripts. Both modes
+produce a recorded session and an HTML report.
 
-### 1. Scripted — you already know the flow
-Give the agent a **test script** (inline JSON or a saved script name) and it replays
-it, step by step, with per-step pass/fail and timing.
+### 1. Smoke test — let the agent explore (recommended)
+Point the agent at an app and say *"smoke test it"*. It explores the app **in depth and
+read-only** — opening menus, inspecting forms, sorting/filtering grids, opening records,
+navigating screens — without saving, submitting, or deleting anything. It then hands you a
+**repeatable, plain-English test plan** (a natural-language script both you and an agent can
+read and re-run), included in the report and saveable to reuse as a regression test.
 
-### 2. Smoke test — let the agent explore
-Point the agent at an app and say *"smoke test it"*. It walks the primary flows on
-its own using `smoke_step` (each call **performs one action and records it**), then
-hands you a **clean, repeatable script** via `get_suggested_script` that you can
-save and rerun as a regression test.
+### 2. Run your test plan — you say what to test
+Tell the agent what to test in plain language (e.g. *"open the first warehouse, check the
+Name field, go back, sort by Created On"*), or point it at a saved plan. It runs the plan —
+optionally **N times** or across **several windows at once** for a light load test — with
+per-step pass/fail and timing.
+
+> Under the hood the agent compiles your plain-language plan into precise UI steps at run
+> time. That machine form is an internal detail — you only ever read and write natural language.
 
 ---
 
@@ -105,10 +112,9 @@ save and rerun as a regression test.
 
 While a session is live the user always sees what's happening:
 
-- **Crimson "Under Agent Control" frame** around every window being driven — works for **maximized windows** too (it insets and clamps to the monitor so the frame and the ✕ tag stay on-screen).
-- **Live HUD pill** at the top-center of the screen — a pulsing red REC dot, the app
-  name, the mode (SMOKE / UX TEST), the current run (e.g. `Run 2/5`) and the current
-  step.
+- **Crimson "Under Agent Control" frame** around every window being driven — a rounded frame
+  that hugs the window border (works for **maximized windows** too), with an **integrated
+  status pill** on its top edge showing a pulsing REC dot and the current step.
 - **Instant abort:** click the ✕ on any control frame to stop everything. The next
   tool call returns `⛔ ABORTED BY USER`, the recording finalizes, and the agent
   stops.
@@ -118,8 +124,8 @@ While a session is live the user always sees what's happening:
 The server drives the workflow's decision points as **clickable buttons** using the MCP
 **elicitation** capability — the choice logic lives in the server, not the agent prompt:
 
-- `open_power_app` verifies the URL, then asks **which mode** to run (Smoke / Explore &
-  propose / Own plan) as buttons and returns the user's pick.
+- `open_power_app` verifies the URL, then asks **which mode** to run (Smoke test / Run my
+  plan) as buttons and returns the user's pick.
 - `ask_user_choice(question, options[])` is a reusable prompt for any decision — approve a
   plan, re-run vs. fix, etc.
 
@@ -140,14 +146,14 @@ start_test_session  ──►  run_test_script / smoke_step  ──►  end_test
 
 | Tool | Purpose |
 |------|---------|
-| `start_test_session(appName, windowQuery?, maxWindows?, fps?, recordVideo?)` | Resolve + control the app window(s), start recording, show the HUD. |
-| `test_session_status()` | Current session: app, windows, mode, runs so far, draft-script size. |
+| `start_test_session(appName, windowQuery?, maxWindows?, fps?, recordVideo?)` | Resolve + control the app window(s), start recording, show the frame status pill. |
+| `test_session_status()` | Current session: app, windows, mode, runs so far, exploration steps. |
 | `end_test_session()` | Stop recording, release windows, write `report.html` + `report.json`. |
-| `run_test_script(scriptJson? \| scriptName?, runs?, parallelWindows?)` | Replay a script `runs` times across `parallelWindows` windows. |
-| `smoke_step(action, description?, …)` | Perform one exploratory action **and** append it to the draft script. |
-| `get_suggested_script(name?)` | Return the draft script assembled from the smoke steps. |
-| `save_test_script(name, scriptJson? \| fromDraft?)` | Persist a script to the library. |
-| `load_test_script(name)` / `list_test_scripts()` | Read / list saved scripts. |
+| `smoke_step(action, description?, …)` | Perform one read-only exploratory action **and** record it to the exploration log. |
+| `get_exploration_log(name?)` | Return the plain-English exploration log (author your test plan from it). |
+| `save_test_plan(name, plan)` | Save a natural-language plan to the library and attach it to the report. |
+| `load_test_plan(name)` / `list_test_plans()` | Read / list saved natural-language plans. |
+| `run_test_script(scriptJson, runs?, parallelWindows?)` | Execute a plan (the agent compiles the plan to steps) `runs` times across `parallelWindows` windows. |
 
 The desktop engine tools are also available for free-form exploration:
 `find_window`, `control_window`, `release_window`, `screenshot_window`,
@@ -156,53 +162,39 @@ The desktop engine tools are also available for free-form exploration:
 
 ---
 
-## Test script format
+## Test plans are natural language
 
-```json
-{
-  "name": "Submit a referral",
-  "appName": "Contoso Referrals",
-  "steps": [
-    { "action": "waitForElement", "description": "app loaded",  "name": "New referral", "timeoutMs": 8000 },
-    { "action": "clickElement",   "description": "open form",   "name": "New referral" },
-    { "action": "type",           "description": "patient name","keys": "Jane Doe{Tab}" },
-    { "action": "clickElement",   "description": "submit",      "name": "Submit" },
-    { "action": "assertElement",  "description": "confirmation","name": "Thank you", "shouldExist": true }
-  ]
-}
+You describe a test in **plain language** — a numbered list of steps that name each control
+by its visible label and state the expected outcome. The agent (or a smoke test) produces
+plans in exactly this form, and the report shows them this way too:
+
+```
+# Contoso Referrals — submit a referral
+
+1. Wait for the app to finish loading — the "New referral" button should be visible.
+2. Click "New referral" — the referral form opens.
+3. Enter "Jane Doe" in the "Patient name" field, then Tab.
+4. Click "Submit".
+5. Verify a "Thank you" confirmation appears.
 ```
 
-### Step actions
-
-| Action | Fields | Notes |
-|--------|--------|-------|
-| `click` | `x`, `y`, `button?`, `clicks?` | Window-relative pixels — the same coordinate space as a `screenshot_window` PNG (`(0,0)` = window top-left). |
-| `clickElement` | `name?`, `automationId?`, `controlType?` | **Preferred.** Finds + invokes a control via UI Automation (no pixel guessing; survives layout/DPI changes). |
-| `type` | `keys` | `send_keys` syntax: text plus `{Enter}`, `{Tab}`, `{Ctrl+A}`, `{Key N}`, … |
-| `scroll` | `amount`, `horizontal?`, `x?`, `y?` | Negative amount = down/left. |
-| `wait` | `ms` | Fixed pause. |
-| `waitForElement` | `name?`/`automationId?`/`controlType?`, `timeoutMs?` | Polls until the control appears (a synchronization gate). |
-| `assertElement` | `name?`/`automationId?`/`controlType?`, `shouldExist?` | Pass/fail presence (or absence) check. |
-| `screenshot` | `description?` | Captures the app window into the report. |
-
-**Tip:** start scripts with a `waitForElement` so they're robust to Power Apps load
-time (screens can take 300–1500 ms). Prefer `clickElement` over `click` whenever the
-control has a stable name or automationId.
+That's the whole authoring model — **no JSON, no coordinates.** Behind the scenes the agent
+compiles each line into precise UI-Automation actions at run time (preferring controls by
+name so the plan survives layout, DPI, and theme changes); that machine form is never shown
+to you and never the saved artifact.
 
 ---
 
 ## Repeat & load testing
 
-- `run_test_script(runs = N)` replays the whole script **N times** in the same window
-  and aggregates pass rate + timings.
-- `run_test_script(parallelWindows = M)` drives **M windows together** to simulate
-  concurrent users. Open M copies of the app first and pass `maxWindows >= M` to
-  `start_test_session`.
+- **Repeat:** ask to run a plan **N times** in the same window to check consistency.
+- **Load:** ask to run it across **M windows at once** to simulate concurrent users (open M
+  copies of the app first).
 
-Because Windows serializes real synthesized input (one cursor, one foreground
-window), a load pass **interleaves**: for each step the runner executes it on every
-window in turn, so all M windows advance through the script together. The report
-breaks results down **per window and per run**.
+Because Windows serializes real synthesized input (one cursor, one foreground window), a load
+pass **interleaves**: for each step the runner executes it on every window in turn, so all M
+windows advance through the plan together. The report breaks results down **per window and
+per run**.
 
 ---
 
@@ -212,7 +204,7 @@ Everything for a session lands in one portable folder:
 
 ```
 %USERPROFILE%\PowerAppsControl\
-  ├─ Scripts\                      saved test scripts (*.json)
+  ├─ Plans\                        saved natural-language test plans (*.md)
   └─ Sessions\<app>_<timestamp>\
        ├─ session.mp4              the session recording
        ├─ report.html             self-contained HTML report (open in any browser)
@@ -222,7 +214,7 @@ Everything for a session lands in one portable folder:
 
 The HTML report includes KPI tiles (runs, pass rate, avg duration, windows), the
 embedded video, per-run expandable step tables with inline screenshots, and — for
-smoke sessions — the suggested repeatable script.
+smoke sessions — the **repeatable, plain-English test plan**.
 
 ---
 

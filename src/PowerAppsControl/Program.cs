@@ -40,53 +40,56 @@ internal sealed class Program
           • If open_power_app says it is NOT a Power App, tell the user and ask for the correct URL. Do NOT
             proceed to testing.
 
-        STEP 2 — CHOOSE THE MODE. Once verified, ASK the user which of these they want (do not assume):
-          1) Smoke test — you explore the app yourself and produce a report + a suggested repeatable script.
-          2) Explore & propose a test plan — you recon the app, then present a proposed step-by-step plan and
-             WAIT for the user's approval before running it.
-          3) Provide your own test plan — the user gives you the steps (or names a saved script) and you run
-             them.
+        STEP 2 — CHOOSE THE MODE. Once verified, ASK the user which of these TWO modes they want (via clickable
+        buttons; do not assume):
+          1) Smoke test — you explore the app IN DEPTH and READ-ONLY, then produce a repeatable, plain-English
+             test plan (a natural-language script both a human and an agent can read and re-run).
+          2) Run my test plan — the user tells you what to test in plain language (or names a saved plan) and you
+             run it.
 
         STEP 3 — EXECUTE & REPORT. Run the chosen mode inside a session, then end it to produce the video +
         report. Concretely:
           • start_test_session(appName, windowQuery)  — pins the app window(s) under agent control (crimson
-            frame), starts the video recording, shows the live HUD. Testing tools are GATED until this is called.
+            frame), starts the video recording, shows the live status pill. Testing tools are GATED until called.
           • Then, depending on the mode:
-              1) Smoke  → walk the app with smoke_step (each call performs ONE action AND appends it to a draft
-                 script), covering the primary flows; then get_suggested_script and optionally save_test_script.
-              2) Explore & propose → screenshot_window + find_element to recon, present the plan, and after the
-                 user approves, run it with run_test_script (or a sequence of smoke_step calls).
-              3) Own plan → run_test_script with the user's scriptJson (or scriptName for a saved one).
-          • end_test_session()  — stops the video, writes report.html + report.json, releases the windows,
-            hides the HUD. ALWAYS end the session, even if a run failed.
+              1) Smoke  → explore the app with smoke_step across its primary flows (open menus/nav, inspect
+                 forms, sort/filter grids, open records, navigate) — strictly READ-ONLY: do NOT save, submit,
+                 delete, or send anything. Then call get_exploration_log, AUTHOR a natural-language test plan
+                 from it, and save it with save_test_plan (which puts it in the report and the library).
+              2) Run my plan → take the user's plain-language plan (or load_test_plan), compile it to run_test_script
+                 steps yourself, and run it.
+          • end_test_session()  — stops the video, writes report.html + report.json (the report shows the
+            natural-language plan, NOT JSON), releases the windows. ALWAYS end the session, even if a run failed.
 
-        CLEAR VISUAL CUES (do not defeat them): every window under test wears the crimson 'Under Agent
-        Control' frame (which also works for MAXIMIZED windows — it insets to stay on-screen), and a live HUD
-        pill at the top of the screen shows the app name, mode, current run (e.g. 'Run 2/5') and current step.
-        The user can STOP everything at any time by clicking the ✕ on a control frame — when that happens your
-        next tool call returns '⛔ ABORTED BY USER'; stop immediately, end the session, and ask how to proceed.
+        NATURAL LANGUAGE, NOT JSON: the user never writes JSON. A test plan is a plain-English numbered list of
+        steps that name controls by their visible label and state the expected outcome. YOU compile that plan
+        into run_test_script's JSON steps at run time — that JSON is an internal execution detail, never shown to
+        the user and never the saved artifact.
 
-        TEST SCRIPT FORMAT (JSON): { "name": "...", "appName": "...", "steps": [ ... ] }. Each step has an
-        "action" and a human "description". Supported actions:
-          • click          {x, y, button?, clicks?}         — click at WINDOW-relative pixels (as in a
-                                                               screenshot_window PNG: (0,0) = window top-left).
+        CLEAR VISUAL CUES (do not defeat them): every window under test wears the crimson 'Under Agent Control'
+        frame (rounded, hugging the window; works for MAXIMIZED windows too), with an integrated status pill on
+        its top edge showing a REC dot + the current step. The user can STOP everything at any time by clicking
+        the ✕ on a control frame — when that happens your next tool call returns '⛔ ABORTED BY USER'; stop
+        immediately, end the session, and ask how to proceed.
+
+        RUN-TIME EXECUTION FORMAT (JSON — you author this, the user does not): run_test_script takes
+        { "name": "...", "steps": [ ... ] }. Each step has an "action" and a human "description". Actions:
           • clickElement   {name?, automationId?, controlType?} — find + invoke a control via UI Automation
-                                                               (preferred: no pixel guessing; survives layout).
-          • type           {keys}                            — type text / chords, e.g. "hello{Enter}",
-                                                               "{Ctrl+A}{Delete}".
-          • scroll         {amount, horizontal?, x?, y?}     — wheel scroll (negative = down).
-          • wait           {ms}                              — fixed pause for the UI to settle.
+                                                                (PREFERRED: no pixel guessing; survives layout).
+          • type           {keys}                            — type text / chords, e.g. "hello{Enter}".
           • waitForElement {name?/automationId?, timeoutMs?} — poll until a control appears (sync gate).
           • assertElement  {name?/automationId?, shouldExist?} — pass/fail check that a control is / isn't present.
+          • scroll         {amount, horizontal?, x?, y?}     — wheel scroll (negative = down).
+          • wait           {ms}                              — fixed pause for the UI to settle.
+          • click          {x, y, button?, clicks?}         — WINDOW-relative pixels (last resort — only for
+                                                                canvas controls UI Automation can't see).
           • screenshot     {description}                     — capture the app into the report.
-        Coordinates for 'click' come from a screenshot_window of the app; prefer clickElement when the
-        control has a stable name/automationId. Always start a script with a couple of waitForElement steps
-        so it is robust to Power Apps load time (screens can take 300–1500 ms).
+        Prefer clickElement/waitForElement/assertElement by name. Always start with a couple of waitForElement
+        steps so it is robust to Power Apps load time (screens can take 300–1500 ms).
 
-        REPEAT & LOAD: run_test_script(runs=N) replays the whole script N times in the SAME window and
-        aggregates timings + pass rate. run_test_script(parallelWindows=M) opens M copies of the app and
-        replays the script in all of them at once to simulate concurrent users — the report breaks results
-        down per window and per run.
+        REPEAT & LOAD: run_test_script(runs=N) replays the whole plan N times in the SAME window and aggregates
+        timings + pass rate. run_test_script(parallelWindows=M) opens M copies of the app and replays the plan in
+        all of them at once to simulate concurrent users — the report breaks results down per window and per run.
 
         STANDARD SEE→ACT→VERIFY LOOP still applies while exploring: screenshot_window to SEE state, decide,
         act (click_in_window / send_keys / find_element / smoke_step), screenshot again to VERIFY. Skipping
@@ -146,7 +149,7 @@ internal sealed class Program
         builder.Services
             .AddMcpServer(o =>
             {
-                o.ServerInfo = new() { Name = "PowerAppsControl", Version = "1.4.0" };
+                o.ServerInfo = new() { Name = "PowerAppsControl", Version = "1.5.0" };
                 o.ServerInstructions = ServerInstructions;
             })
             .WithStdioServerTransport()
