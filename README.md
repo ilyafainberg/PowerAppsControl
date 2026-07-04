@@ -12,7 +12,7 @@ test script** any number of times (optionally across several windows at once for
 light load testing), and writes a **self-contained HTML report** summarizing the
 runs.
 
-It is a specialization of the [TotalControl](../TotalControl) desktop-control
+It is a specialization of the [TotalControl](https://github.com/ilyafainberg/TotalControl-MCP-Server) desktop-control
 engine: the whole low-level interaction layer is reused, with a UX-testing layer
 (sessions, scripts, smoke tests, recording, reporting) built on top.
 
