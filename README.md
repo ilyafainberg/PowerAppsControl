@@ -5,7 +5,6 @@
 ### UX-test your Power Apps like a real user — driven, recorded, and reported by an AI agent.
 
 [![Release](https://img.shields.io/github/v/release/ilyafainberg/PowerAppsControl?sort=semver)](https://github.com/ilyafainberg/PowerAppsControl/releases)
-[![Build](https://github.com/ilyafainberg/PowerAppsControl/actions/workflows/release.yml/badge.svg)](https://github.com/ilyafainberg/PowerAppsControl/actions/workflows/release.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6)
 
