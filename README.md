@@ -1,9 +1,21 @@
+<div align="center">
+
 # PowerAppsControl
+
+### UX-test your Power Apps like a real user — driven, recorded, and reported by an AI agent.
 
 [![Release](https://img.shields.io/github/v/release/ilyafainberg/PowerAppsControl?sort=semver)](https://github.com/ilyafainberg/PowerAppsControl/releases)
 [![Build](https://github.com/ilyafainberg/PowerAppsControl/actions/workflows/release.yml/badge.svg)](https://github.com/ilyafainberg/PowerAppsControl/actions/workflows/release.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6)
+
+<video src="https://github.com/ilyafainberg/PowerAppsControl/raw/main/docs/powerappscontrol-demo.mp4" controls muted autoplay loop playsinline width="880"></video>
+
+_If the player doesn't load inline, ▶ [**watch the demo**](docs/powerappscontrol-demo.mp4) (silent)._
+
+</div>
+
+---
 
 An **MCP server for UX testing of Power Apps**. It drives a canvas or model-driven
 app exactly like a real user — synthesized mouse + keyboard, DWM-aware screenshots,
@@ -18,13 +30,6 @@ engine: the whole low-level interaction layer is reused, with a UX-testing layer
 
 Built for **Microsoft Scout**, **GitHub Copilot CLI** and any MCP-compatible host. Windows only
 (.NET 10, PerMonitor-V2 DPI-aware).
-
-## Demo
-
-<video src="https://github.com/ilyafainberg/PowerAppsControl/raw/main/docs/powerappscontrol-demo.mp4" controls width="100%"></video>
-
-> If the player doesn't load inline, [watch the demo here](docs/powerappscontrol-demo.mp4)
-> (the video is silent).
 
 ---
 
