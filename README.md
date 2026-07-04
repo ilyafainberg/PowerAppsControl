@@ -304,9 +304,20 @@ to load the new version.
 ## Build & run
 
 ```powershell
-dotnet build -c Release
+dotnet build PowerAppsControl.sln -c Release
 # run directly as an MCP stdio server:
-dotnet run -c Release
+dotnet run --project src/PowerAppsControl -c Release
+```
+
+### Repository layout
+
+```
+PowerAppsControl.sln            solution (root)
+global.json                     .NET SDK pin
+src/PowerAppsControl/           the MCP server project (source + skill/)
+installer/                      Inno Setup script + update helper
+.github/workflows/release.yml   tag-triggered release pipeline
+docs/                           demo video + assets
 ```
 
 ### Manual registration (if you prefer to edit config yourself)
