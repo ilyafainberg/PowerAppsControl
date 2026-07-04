@@ -33,14 +33,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="\" Condition="Exists('README.md')" />
-    <None Include="LICENSE" Pack="true" PackagePath="\" Condition="Exists('LICENSE')" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Condition="Exists('..\..\README.md')" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" Condition="Exists('..\..\LICENSE')" />
     <!-- Companion skill shipped next to the exe; the register command installs it for the MCP host. -->
     <None Include="skill\SKILL.md" CopyToOutputDirectory="PreserveNewest" Condition="Exists('skill\SKILL.md')">
       <Link>skill\SKILL.md</Link>
     </None>
     <!-- Update helper shipped next to the exe (used by the update commands / tools). -->
-    <None Include="installer\apply-update.cmd" CopyToOutputDirectory="PreserveNewest" Condition="Exists('installer\apply-update.cmd')">
+    <None Include="..\..\installer\apply-update.cmd" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\installer\apply-update.cmd')">
       <Link>apply-update.cmd</Link>
     </None>
   </ItemGroup>
