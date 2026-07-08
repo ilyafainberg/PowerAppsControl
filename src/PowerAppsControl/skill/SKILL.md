@@ -1,6 +1,6 @@
 ---
 name: "PowerAppsControl"
-description: "Drive the PowerAppsControl MCP server to UX-test a Power App end to end: open and verify an app URL, let the user choose a mode (smoke test = in-depth read-only exploration that produces a repeatable natural-language test plan; or run my test plan), then run it in a recorded session and produce a video + HTML report with a plain-English test plan. Handles canvas apps, model-driven apps, the maker portal, and Power Pages. Triggers: 'test power app', 'test my power app', 'UX test', 'smoke test my app', 'record a test of my app', 'PowerAppsControl', '/PowerAppsControl', 'run a test plan on my app', 'load test my power app'. Use whenever the user wants to exercise, validate, record, or load-test a Power App's UI."
+description: "Drive the PowerAppsControl MCP server to UX-test a Power App end to end: open and verify an app URL, let the user choose a mode (smoke test = in-depth read-only exploration that produces a repeatable natural-language test plan; run my test plan; or dogfood = systematic bug hunt that produces a severity-ranked issue report with repro evidence), then run it in a recorded session and produce a video + report. Handles canvas apps, model-driven apps, the maker portal, and Power Pages. Triggers: 'test power app', 'test my power app', 'UX test', 'smoke test my app', 'record a test of my app', 'PowerAppsControl', '/PowerAppsControl', 'run a test plan on my app', 'load test my power app', 'dogfood', 'QA my app', 'bug hunt', 'find issues in my app', 'exploratory test'. Use whenever the user wants to exercise, validate, record, load-test, or find bugs in a Power App's UI."
 ---
 
 # PowerAppsControl — Power Apps UX testing playbook
@@ -60,17 +60,27 @@ missing. Sessions still run without it, just with no video.
 
 ## Step 2 — Choose the mode (clickable buttons)
 
-Present the **two** modes as buttons with **`m_ask_user`** (see "Clickable choices" above) and
-wait for the user's pick. `open_power_app` also returns a mode prompt as text, but on Scout it
-will NOT have rendered buttons — so you render them. Offer:
+Present the **three** modes as buttons with **`m_ask_user`** (see "Clickable choices" above)
+and wait for the user's pick. `open_power_app` also returns a mode prompt as text, but on
+Scout it will NOT have rendered buttons — so you render them. Offer:
 
-1. **Smoke test** — you explore the app **in depth and read-only**, then produce a **repeatable,
-   plain-English test plan** (a natural-language script both a human and an agent can read and
-   re-run). This is the default recommendation.
-2. **Run my test plan** — the user tells you what to test in plain language (or names a saved
-   plan) and you run it.
+1. **Smoke test** — you explore the app **in depth and read-only**, then produce a
+   **repeatable, plain-English test plan** (a natural-language script both a human and an
+   agent can read and re-run). Recommended when the goal is a reusable regression asset.
+2. **Run my test plan** — the user tells you what to test in plain language (or names a
+   saved plan) and you run it, optionally N times or across M windows.
+3. **Dogfood (bug hunt)** — you systematically explore the app to **find bugs, UX issues,
+   and polish problems**, and produce a **severity-ranked issue report** (`findings.md`)
+   with full repro evidence for each finding. Recommended when the goal is *quality
+   feedback to hand to the owning team*, not a re-runnable script.
 
 Do **not** assume a mode. Wait for the choice.
+
+> Smoke test vs. Dogfood: both explore read-only, but they produce **different
+> deliverables**. Smoke test's artifact is a *test plan* (what the app does, re-runnable).
+> Dogfood's artifact is an *issue report* (what's wrong with the app, with proof). If the
+> user says "find bugs / QA / what's broken", pick Dogfood; if they say "give me a test I
+> can rerun", pick Smoke test.
 
 ---
 
@@ -102,9 +112,101 @@ start one. Always end the session even if a run fails — that's what writes the
    run it with **`run_test_script(scriptJson=...)`**. Offer `runs=N` (repeat) and
    `parallelWindows=M` (load) if they want.
 
-3. **`end_test_session()`** — stops the video, releases the window, writes
-   `report.html` + `report.json` + screenshots into the session folder. The report shows the
-   **natural-language plan** (not JSON). Give the user the report path and offer to open it.
+   **C) Dogfood (bug hunt).** Explore like a real user, find issues, and document each one
+   with evidence **as you find it**. See the full **Dogfood mode** section below.
+
+3. **`end_test_session()`** — stops the video, releases the window, writes `report.html`
+   + `report.json` + screenshots into the session folder. Give the user the paths. For a
+   dogfood run, also point them at the `findings.md` you authored (see below).
+
+---
+
+## Dogfood mode (bug hunt) — the deep dive
+
+Dogfood mode encodes a QA analyst's judgment: **what counts as a bug, how severe it is, how
+to prove it, and when to stop.** The driving is the easy part; the discipline below is the
+value. Do this **inside an active session** (Step 3) so the whole run is recorded to
+`session.mp4` and every screenshot lands in the session folder.
+
+### D0. Calibrate
+
+At the start of the run, read **Appendix A — Issue taxonomy** (below) to load the severity
+levels, issue categories, and the Power-Platform-specific things to watch (canvas
+non-response, model-driven grid/subgrid/lookup failures, delegation limits, permission
+banners). This is what turns "click around" into "recognize a real finding and rate it."
+
+### D1. Prepare the findings report (write early)
+
+Immediately create **`findings.md`** in the session folder using the template in
+**Appendix B — Dogfood report template** (below), filling the header (app, date, session,
+scope, environment). Prefer a **non-production / developer environment** for anything that
+could mutate data. Write this file **before** you start hunting — sessions end by
+abandonment, and a report that only exists "at the end" is a report that gets lost.
+
+### D2. Orient
+
+`screenshot_window` for an initial capture, then map the app: main navigation, the primary
+areas/screens, and the core end-to-end workflows a real user would run. Note which surface
+you're on (canvas vs. model-driven vs. maker portal vs. Power Pages) — it dictates how you
+drive and verify (see "Canvas vs model-driven" below).
+
+### D3. Explore + document in one pass (repro-first)
+
+Work through the app **systematically**: top-level nav first, then each area; test
+interactive elements, forms (submit-*intent* only, non-destructive), navigation, and the
+state matrix (empty / loading / error / overflow). Check for slow screens and error banners.
+Drive with **`smoke_step`** (it also records to the exploration log) and free-form desktop
+tools for recon.
+
+**The instant you find an issue, stop and document it before moving on** — do not explore
+the whole app and write up later. Match the evidence to the issue type:
+
+- **Interactive / behavioral bug** (something that needs interaction to reproduce):
+  1. Screenshot **before**, perform the action, screenshot **after** — into the session
+     `screenshots\` folder as `issue-{NNN}-step-{k}.png`, ending with an annotated
+     `issue-{NNN}-result.png` of the broken state.
+  2. Note the **step marker / approximate timestamp into `session.mp4`** so a reviewer can
+     scrub to it. You do **not** start a separate per-issue video — PowerAppsControl already
+     records the entire session.
+  3. Write numbered repro steps in `findings.md`, each referencing its screenshot.
+- **Static / visible-on-load bug** (typo, clipped text, misalignment, placeholder text,
+  error banner on load): a **single annotated screenshot** is enough. Set "Session video @"
+  to `N/A`. No step-by-step.
+
+**Append each issue to `findings.md` immediately**, increment the counter
+(`ISSUE-001`, `ISSUE-002`, …), and never delete or rewrite prior screenshots/entries.
+
+### D4. Stop rule
+
+Aim for **5–10 well-documented issues**, then wrap up. **Depth of evidence beats raw
+count** — five issues with clean repro are worth more than twenty vague notes. If one area is
+a cluster of problems, go deeper there rather than padding breadth.
+
+### D5. Wrap up (on demand — never blocking)
+
+When the user says to wrap up (or you hit the stop rule): re-read `findings.md`, update the
+**severity summary counts** so they match the actual `ISSUE-` blocks, then call
+**`end_test_session()`** to finalize `session.mp4` + `report.html`. Tell the user the
+`findings.md` path, the total issue count, the breakdown by severity, and the most critical
+items. Because you wrote findings incrementally, an interrupted session still yields a usable
+report.
+
+### Dogfood behavior rules
+
+- **Repro is everything, but sized to the bug.** Interactive bugs get step screenshots +
+  a session-video marker; static bugs get one screenshot. Don't over-document a typo.
+- **Verify every action.** After each meaningful action, `screenshot_window` to confirm the
+  app actually responded. A "green" coordinate click that produced no visible change is a
+  **real finding** (log it honestly), not a tool glitch.
+- **Type like a human when it matters.** Prefer character-by-character typing during the
+  recorded repro so the video is watchable; pace actions so a reviewer can follow at 1×.
+- **Test like a user, not a robot.** Run realistic end-to-end workflows; click what a real
+  user would click; enter realistic data.
+- **Read-only by default.** Never save/submit/delete real records or run destructive
+  command-bar actions without explicit user confirmation; prefer a dev environment for
+  anything that could mutate data.
+- **Don't audit source.** You test what you observe in the running app, not its code.
+- **Write forward, never backward.** Don't delete output, don't restart the session mid-run.
 
 ---
 
@@ -117,7 +219,7 @@ Prefer `waitForElement` steps in scripts to synchronize on load.
 
 ---
 
-## Writing the test plan (natural language — this is the deliverable)
+## Writing the test plan (natural language — the Smoke-test deliverable)
 
 **The test plan is a plain-English document, and the user never writes JSON.** For a smoke
 test, `get_exploration_log` returns what you observed; you turn that into a **detailed,
@@ -142,6 +244,10 @@ Rules for good steps: one action each; name the control the way the user sees it
 should happen; add explicit "wait for … to appear" steps around anything that loads; note any
 read-only vs. data-changing step. **Save the plan with `save_test_plan(name, plan)`** — it goes
 into the HTML report (rendered as readable text, not JSON) and the library so it can be re-run.
+
+> Bridge from Dogfood to regression: a confirmed reproducible bug from a dogfood run makes a
+> great regression test. Offer to convert its repro steps into a saved natural-language test
+> plan (`save_test_plan`) so "Run my test plan" mode can re-check the fix later.
 
 ### Running a plan (how JSON fits in — internal only)
 
@@ -239,6 +345,7 @@ Low-level desktop tools (for recon / free-form driving):
 
 ## Definition of done
 
+**Smoke test / Run my test plan:**
 - App URL verified as a real Power App (Step 1).
 - The user picked a mode via buttons (Step 2) — you did not assume.
 - Work ran inside a session that was **started and ended** (Step 3); a `report.html`
@@ -246,3 +353,166 @@ Low-level desktop tools (for recon / free-form driving):
   given to the user.
 - Findings reported honestly, including any coordinate clicks that didn't visibly take
   effect. Nothing destructive was done without explicit confirmation.
+
+**Dogfood (bug hunt):**
+- `findings.md` was created **at the start** and appended to **as each issue was found**.
+- Every issue has evidence sized to its type (interactive → step screenshots + session-video
+  marker; static → one annotated screenshot), a severity, and a category.
+- The severity summary counts match the `ISSUE-` blocks.
+- The session was **started and ended** (so `session.mp4` + `report.html` exist); the user
+  was given the `findings.md` path, the total, the severity breakdown, and the top issues.
+- Nothing destructive was done without explicit confirmation; a dev environment was preferred.
+
+---
+
+## Appendix A — Issue taxonomy (Power Apps)
+
+Read this at the start of a **Dogfood** run to calibrate what counts as a finding and how
+severe it is. Adapted for Power Platform surfaces (canvas, model-driven, maker portal,
+Power Pages) driven through this server.
+
+### Severity levels
+
+| Severity | Definition |
+|----------|------------|
+| **critical** | Blocks a core workflow, causes data loss, or crashes/hangs the app |
+| **high** | Major feature broken or unusable, no workaround |
+| **medium** | Feature works but with noticeable problems; a workaround exists |
+| **low** | Minor cosmetic or polish issue |
+
+### Categories
+
+**Visual / UI** — broken/misaligned layout; overlapping or clipped text; inconsistent
+spacing/padding; missing or broken icons/images; theme or high-contrast rendering issues;
+z-index/stacking (elements hidden behind others; modal behind backdrop); font rendering;
+color-contrast problems; animation jank.
+
+**Functional** — broken links / navigation to the wrong screen; buttons/controls that **do
+nothing** on click; **"green click that didn't take effect"** (a coordinate click reported as
+fired but the app didn't visibly respond — a real finding, verify with a follow-up
+screenshot); form validation that rejects valid or accepts invalid input; incorrect
+redirects; silent failures; state not persisted when expected (lost on refresh / navigation /
+back); race conditions (double-submit, stale data); broken search / filter / sort /
+pagination; file upload/download / attachment failures.
+
+**UX** — confusing navigation; missing loading indicator or feedback after an action; slow or
+unresponsive interactions (>300 ms perceived delay); unclear error messages (raw exception
+text, GUIDs, "An error has occurred"); missing confirmation before a destructive action; dead
+ends (no way back or forward); inconsistent patterns across similar screens; poor focus
+management; unintuitive defaults; missing or unhelpful empty states.
+
+**Content** — typos or grammatical errors; outdated/incorrect text; placeholder / lorem-ipsum
+/ "Label" text left in; truncated text without tooltip or expansion; missing or wrong field
+labels; inconsistent terminology.
+
+**Performance** — slow screen loads (>3 s, common with large Dataverse views); janky
+scrolling/animations; large layout shifts (content jumping); app slows over time within a
+session.
+
+**Errors / diagnostics** — visible error banners/toasts/dialogs; "Unexpected error" /
+correlation-ID dialogs in model-driven apps; business-rule / plug-in errors surfaced to the
+user; permission/privilege errors ("You don't have access").
+
+**Accessibility (best-effort, visual)** — missing alt text or unlabeled controls (where
+observable); a control you can't reach by keyboard / focus trap; insufficient color contrast;
+focus not visible.
+
+### Power Platform–specific things to watch
+
+- **Canvas apps** render onto a canvas and expose almost nothing to UI Automation beyond the
+  player chrome. Expect to verify by screenshot, not by element. A control that looks
+  clickable but yields no visible change is a finding.
+- **Model-driven apps** expose rich UI Automation (stable names/automationIds). Watch for:
+  grid load spinners that never resolve, subgrids that don't refresh after edit, command-bar
+  buttons greyed unexpectedly, lookup/quick-find returning nothing for known records, form
+  tabs that fail to load.
+- **Delegation / data limits** — large datasets silently capped; filters/sorts returning
+  partial or wrong results.
+- **Environment & permissions** — banner warnings, trial/expired notices, missing connection
+  prompts, "add connection" loops.
+- **Slow first paint** — give model-driven/canvas apps a few seconds; distinguish a genuine
+  hang from normal cold-load latency before filing a critical.
+
+### Exploration checklist (per screen/feature)
+
+1. **Visual scan** — screenshot; look for layout, alignment, rendering issues.
+2. **Interactive elements** — click every button/link/control; is there feedback? (Screenshot
+   after to confirm the app responded.)
+3. **Forms** — fill and submit-*intent* only, in a non-prod/dev environment; test empty
+   submission, invalid input, and edge cases. **Never** save/submit/delete real records
+   without explicit user confirmation.
+4. **Navigation** — follow nav paths; check breadcrumbs, back button, deep links.
+5. **States** — empty, loading, error, full/overflow.
+6. **Errors** — trigger and read error messages; note raw/unhelpful ones.
+7. **Consistency** — compare similar screens for pattern drift.
+8. **Performance** — note any screen that takes >3 s or feels janky.
+
+---
+
+## Appendix B — Dogfood report template
+
+Copy this into the session folder as `findings.md` at the **start** of a Dogfood run, fill
+the header, then append one `### ISSUE-NNN` block per finding as you go.
+
+````markdown
+# Dogfood Report: {APP_NAME}
+
+| Field | Value |
+|-------|-------|
+| **Date** | {DATE} |
+| **App URL** | {URL} |
+| **Session** | {SESSION_NAME} |
+| **Session folder** | {SESSION_FOLDER} |
+| **Session video** | session.mp4 |
+| **Scope** | {SCOPE} |
+| **Environment** | {ENV — prefer a non-production / developer environment} |
+
+## Summary
+
+| Severity | Count |
+|----------|-------|
+| Critical | 0 |
+| High | 0 |
+| Medium | 0 |
+| Low | 0 |
+| **Total** | **0** |
+
+## Issues
+
+<!--
+Copy the block below for each issue, and APPEND IT IMMEDIATELY when you find it — never
+batch to the end (the session may be abandoned). PowerAppsControl records the WHOLE session
+to session.mp4, so interactive bugs reference a timestamp/step marker into it rather than a
+separate per-issue video.
+-->
+
+### ISSUE-001: {Short title}
+
+| Field | Value |
+|-------|-------|
+| **Severity** | critical / high / medium / low |
+| **Category** | visual / functional / ux / content / performance / errors / accessibility |
+| **Surface** | canvas / model-driven / maker portal / Power Pages |
+| **Screen / URL** | {where it was found} |
+| **Session video @** | {approx timestamp or step # in session.mp4, or N/A for static} |
+
+**Description**
+
+{What is wrong, what was expected, and what actually happened.}
+
+**Repro steps**
+
+1. Navigate to {screen}
+   ![Step 1](screenshots/issue-001-step-1.png)
+
+2. {Action — e.g., open the "Warehouses" view and click the first record}
+   ![Step 2](screenshots/issue-001-step-2.png)
+
+3. {Action — e.g., edit "Name", then click Save}
+   ![Step 3](screenshots/issue-001-step-3.png)
+
+4. **Observe:** {what goes wrong — e.g., the subgrid does not refresh and shows stale data}
+   ![Result](screenshots/issue-001-result.png)
+
+---
+````

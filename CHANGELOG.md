@@ -4,6 +4,26 @@ All notable changes to **PowerAppsControl** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Companion skill: a third "Dogfood (bug hunt)" mode** (skill-only change — no server
+  code touched). Alongside *Smoke Test* and *Run my plan*, the agent can now systematically
+  explore an app to **find bugs, UX issues, and polish problems** and produce a
+  severity-ranked issue report (`findings.md`) with repro evidence per finding. This is a
+  distinct *deliverable* from Smoke Test — an **issue report** ("what's wrong, with proof")
+  rather than a re-runnable **test plan** — and is **not** a revival of the removed
+  standalone *Explore* mode.
+  - Adds an **issue taxonomy** (severity levels + categories) adapted to Power Platform
+    surfaces (canvas non-response, model-driven grid/subgrid/lookup failures, delegation
+    limits, permission banners), a **repro-first evidence discipline** sized to issue type
+    (interactive → step screenshots + a marker into the existing `session.mp4`; static →
+    one annotated screenshot), and an **incrementally-written report** so an abandoned
+    session still yields usable findings.
+  - Bundled as **inline appendices** in `skill/SKILL.md` so it deploys through the existing
+    `--register` pipeline with no changes to `InstallSkill` or the `.csproj` (which today
+    copy only `SKILL.md`).
+
 ## [1.5.0] — 2026-07-04
 
 ### Changed
